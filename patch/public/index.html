@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patch Mappings</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Patch Mappings</h1>
+      <span id="status" class="status disconnected">Disconnected</span>
+    </header>
+
+    <div class="controls">
+      <button id="load-btn">Aktuelle Config laden</button>
+      <button id="save-btn">Mappings anwenden</button>
+      <button id="clear-btn">Alle entfernen</button>
+      <label style="margin-left:10px">⬆️ Import JSON
+        <input id="import-input" type="file" accept="application/json" />
+      </label>
+      <button id="export-btn" style="margin-left:10px">⬇️ Export JSON</button>
+    </div>
+
+    <div id="patch-matrix-container"></div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
+

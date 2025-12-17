@@ -5,6 +5,8 @@ const UpdateFeedbacks = require('./feedbacks')
 const UpdateVariableDefinitions = require('./variables')
 const superrackMidiMap = require('./superrack-midi-map.json')
 const fastifyFactory = require('fastify')
+const { applyMappings } = require('./patch/applyMappings')
+const fastifyStatic = require('@fastify/static')
 
 class ModuleInstance extends InstanceBase {
 	constructor(internal) {
@@ -427,6 +429,21 @@ class ModuleInstance extends InstanceBase {
 			return
 		}
 		const fastify = fastifyFactory({ logger: false })
+
+		// Static für Patch-UI (Fastify v5 + @fastify/static v8)
+		fastify.register(fastifyStatic, {
+			root: [require('path').join(__dirname, 'public'), __dirname],
+			prefix: '/patch/',
+		})
+
+		// Root der Patch-UI
+		fastify.get('/patch', async (req, reply) => {
+			return reply.sendFile('public/index.html')
+		})
+		fastify.get('/patch/', async (req, reply) => {
+			return reply.sendFile('public/index.html')
+		})
+
 		fastify.get('/health', async (req, reply) => {
 			return {
 				status: 'ok',
@@ -447,6 +464,37 @@ class ModuleInstance extends InstanceBase {
 			}
 		})
 
+		// Neuer Endpoint: Aktuelle Mappings aus der Config abrufen
+		fastify.get('/patch/mappings', async (req, reply) => {
+			const mappings = {}
+			const maxRacks = parseInt(this.config?.maxRacks, 10) || this.state.maxRacks || 64
+			for (let r = 1; r <= maxRacks; r++) {
+				const key = `rack_channel_index_${r}`
+				const val = this.config?.[key]
+				const ch = parseInt(val, 10)
+				if (Number.isInteger(ch) && ch >= 1 && ch <= 99) {
+					mappings[r] = ch
+				}
+			}
+			reply.code(200)
+			return { success: true, mappings }
+		})
+
+		// Neuer Endpunkt: Mappings anwenden (anschliessen)
+		fastify.post('/patch/anschliessen', async (req, reply) => {
+			try {
+				const body = req.body || {}
+				const mappings = body.mappings || {}
+				const result = await this.anschliessen(mappings)
+				reply.code(200)
+				return { status: 200, result }
+			} catch (e) {
+				this._log('error', 'HTTP anschliessen failed', { error: e?.message })
+				reply.code(500)
+				return { status: 500, error: e?.message }
+			}
+		})
+
 		try {
 			await fastify.listen({ port, host: '0.0.0.0' })
 			this._http.server = fastify
@@ -455,6 +503,19 @@ class ModuleInstance extends InstanceBase {
 			this._log('info', 'HTTP server started', { port })
 		} catch (err) {
 			this._log('error', 'Failed to start HTTP server', { error: err?.message, port })
+		}
+	}
+
+	async anschliessen(mappings) {
+		// Öffentliche API-Funktion: Mappings (Rack->Channel) anwenden
+		try {
+			const payload = mappings && typeof mappings === 'object' ? mappings : {}
+			const { updated, applied } = await applyMappings(this, payload)
+			this._log('info', 'anschliessen ausgeführt', { updated, appliedCount: Object.keys(applied).length })
+			return { status: 'ok', updated, applied }
+		} catch (e) {
+			this._log('error', 'anschliessen fehlgeschlagen', { error: e?.message })
+			return { status: 'error', error: e?.message }
 		}
 	}
 
