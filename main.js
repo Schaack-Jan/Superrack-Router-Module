@@ -4,6 +4,7 @@ const UpdateActions = require('./actions')
 const UpdateFeedbacks = require('./feedbacks')
 const UpdateVariableDefinitions = require('./variables')
 const superrackMidiMap = require('./superrack-midi-map.json')
+const fastifyFactory = require('fastify')
 
 class ModuleInstance extends InstanceBase {
 	constructor(internal) {
@@ -23,6 +24,8 @@ class ModuleInstance extends InstanceBase {
 		}
 		this.logLevel = 'info'
 		this._json = { routing: '', midi: '' }
+		// HTTP server state
+		this._http = { server: null, port: 8010, started: false }
 	}
 
 	async init(config) {
@@ -33,11 +36,12 @@ class ModuleInstance extends InstanceBase {
 		this.updateActions()
 		this.updateFeedbacks()
 		this.updateVariableDefinitions()
+		await this._startHttpServer()
 	}
 
 	async destroy() {
 		this.log('debug', 'destroy')
-		// Keine eigene Schließung nötig, Connection wird von Companion verwaltet
+		await this._stopHttpServer()
 	}
 
 	async configUpdated(config) {
@@ -53,6 +57,12 @@ class ModuleInstance extends InstanceBase {
 		try {
 			this.updateVariableDefinitions()
 		} catch {}
+		const desiredPort = parseInt(this.config?.httpPort, 10) || this._http.port
+		this.config.httpPort = desiredPort
+		if (desiredPort !== this._http.port) {
+			await this._stopHttpServer()
+			await this._startHttpServer()
+		}
 	}
 
 	getConfigFields() {
@@ -92,6 +102,15 @@ class ModuleInstance extends InstanceBase {
 				default: this.state.maxRacks || 64,
 			},
 			{
+				type: 'number',
+				id: 'httpPort',
+				label: 'HTTP Port',
+				min: 1,
+				max: 65535,
+				default: this.config?.httpPort || this._http.port,
+				tooltip: 'Port for the Fastify HTTP server',
+			},
+			{
 				type: 'textinput',
 				id: 'midiMap',
 				label: 'Superrack MIDI Map (JSON)',
@@ -104,7 +123,7 @@ class ModuleInstance extends InstanceBase {
 		const maxRacks = parseInt(this.config?.maxRacks, 10) || this.state.maxRacks || 64
 		for (let i = 1; i <= maxRacks; i++) {
 			const key = `rack_channel_index_${i}`
-			if (!key in this.config || !this.config[key] || this.config[key] === '') {
+			if (!(key in this.config) || this.config[key] === '' || this.config[key] == null) {
 				this.config[key] = `${i}`
 			}
 
@@ -122,6 +141,7 @@ class ModuleInstance extends InstanceBase {
 
 	_applyConfig() {
 		this.logLevel = this.config?.logLevel || 'error'
+		this._http.port = this.config?.httpPort || this._http.port
 		const mr = parseInt(this.config?.maxRacks, 10)
 		if ([64, 32, 16, 8, 4].includes(mr)) this.state.maxRacks = mr
 
@@ -398,6 +418,65 @@ class ModuleInstance extends InstanceBase {
 			if (step.delay > 0) await new Promise((res) => setTimeout(res, step.delay))
 		}
 		this._log('info', 'ended rack sequence', { rackId })
+	}
+
+	async _startHttpServer() {
+		const port = parseInt(this.config?.httpPort, 10) || this._http.port
+		if (this._http.started) {
+			this._log('debug', 'HTTP server already running')
+			return
+		}
+		const fastify = fastifyFactory({ logger: false })
+		fastify.get('/health', async (req, reply) => {
+			return {
+				status: 'ok',
+				sequenceRunning: this.state.sequenceRunning,
+				activeSourceIndex: this.state.activeSourceIndex,
+			}
+		})
+
+		fastify.get('/reload-config', async (req, reply) => {
+			try {
+				await this._reloadConfig()
+				reply.code(200)
+				return { status: 200, message: 'success'}
+			} catch (e) {
+				this._log('error', 'reload-config failed', { error: e?.message })
+				reply.code(500)
+				return { status: 500, message: 'failed', error: e?.message}
+			}
+		})
+
+		try {
+			await fastify.listen({ port, host: '0.0.0.0' })
+			this._http.server = fastify
+			this._http.port = port
+			this._http.started = true
+			this._log('info', 'HTTP server started', { port })
+		} catch (err) {
+			this._log('error', 'Failed to start HTTP server', { error: err?.message, port })
+		}
+	}
+
+	async _reloadConfig() {
+		this._applyConfig()
+		try { this.updateActions() } catch {}
+		try { this.updateFeedbacks() } catch {}
+		try { this.updateVariableDefinitions() } catch {}
+		this._log('info', 'Config reloaded via HTTP')
+	}
+
+	async _stopHttpServer() {
+		if (this._http.server && this._http.started) {
+			try {
+				await this._http.server.close()
+				this._log('info', 'HTTP server stopped', { port: this._http.port })
+			} catch (err) {
+				this._log('error', 'Failed to stop HTTP server', { error: err?.message })
+			}
+		}
+		this._http.server = null
+		this._http.started = false
 	}
 }
 
