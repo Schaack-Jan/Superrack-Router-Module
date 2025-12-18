@@ -155,6 +155,7 @@ async function loadFromCompanion() {
     clearAllMappings();
     let mapping = data.mapping || [];
     for (const map of mapping) {
+        if (!map) continue
         const cell = document.querySelector(`div[data-rack="${map.id}"][data-channel="${map.value}"]`);
         if (cell) cell.classList.add('active');
     }
