@@ -65,6 +65,9 @@ async function startupPatchMatrix(res) {
       cell.className = 'patch-cell';
       cell.setAttribute('data-rack', r);
       cell.setAttribute('data-channel', c);
+      if (rackMappings[r] && rackMappings[r].value === c) {
+        cell.classList.add('active');
+      }
 
       const inner = document.createElement('div');
       inner.className = 'patch-cell-inner';

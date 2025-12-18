@@ -55,6 +55,7 @@ const _startHttpServer = async function (instance) {
 
             const mapping = body.mapping || []
             instance.config.racks = mapping
+            instance.rackMap = mapping
 
             instance.saveConfig(instance.config)
             instance._applyConfigToLocalScopes()
@@ -63,7 +64,7 @@ const _startHttpServer = async function (instance) {
             instance.updateVariableDefinitions()
 
             reply.code(200)
-            return { status: 200, result: { updated: mapping.length, total: mapping.length } }
+            return { status: 200, result: { updated: mapping.length-1, total: mapping.length-1 } }
         } catch (e) {
             instance._log('error', 'HTTP update failed', { error: e?.message })
             reply.code(500)
