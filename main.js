@@ -70,7 +70,7 @@ class ModuleInstance extends InstanceBase {
 	getConfigFields() {
         this.config = this.config || {};
 
-		const fields = [
+		return [
 			{
 				type: 'static-text',
 				id: 'info_intro',
@@ -121,26 +121,6 @@ class ModuleInstance extends InstanceBase {
 				multiline: true,
 			},
 		]
-
-		/*const maxRacks = parseInt(this.config?.maxRacks, 10) || this.rackCount || 64
-		for (let rack = 1; rack <= maxRacks; rack++) {
-			if (!(rack in this.config.racks) || this.config.racks[rack] === '') {
-				this.config.racks[rack] = {
-					"id": rack,
-					"value": null
-				}
-			}
-
-			fields.push({
-				type: 'textinput',
-				id: `racks[${rack}].value`,
-				label: `Channel index for rack ${rack}`,
-				width: 3,
-				value: this.config.racks?.[rack]?.value ?? null,
-			})
-		}*/
-
-		return fields
 	}
 
 	_applyConfigToLocalScopes(preventConfigReupdate = false) {
