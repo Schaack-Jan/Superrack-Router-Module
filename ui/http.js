@@ -40,14 +40,6 @@ const _startHttpServer = async function (instance) {
         return { success: true, mapping: instance.config.racks, meta: { maxRacks, numChannels: instance.channelCount, emptyMapping: instance.emptyMapping} }
     })
 
-    fastify.get('/config/reset', async (req, reply) => {
-        instance.saveConfig({})
-        instance._applyConfigToLocalScopes()
-        instance.updateActions()
-        instance.updateFeedbacks()
-        instance.updateVariableDefinitions()
-    })
-
     // New endpoint: Apply mappings (connect)
     fastify.post('/patch/update', async (req, reply) => {
         try {
