@@ -3,35 +3,37 @@ const UpgradeScripts = require('./upgrades')
 const UpdateActions = require('./actions')
 const UpdateFeedbacks = require('./feedbacks')
 const UpdateVariableDefinitions = require('./variables')
-const superrackMidiMap = require('./superrack-midi-map.json')
+const defaults = require('./default-variables')
 const fastifyFactory = require('fastify')
 const fastifyStatic = require('@fastify/static')
 
 class ModuleInstance extends InstanceBase {
-	constructor(internal) {
+    constructor(internal) {
 		super(internal)
 		this.state = {
-			routingMatrix: { matrix: {} },
 			activeSourceIndex: null,
 			activeSourceLabel: '',
 			lastRoutedRacks: [],
 			lastActionTimestamp: 0,
 			failedStepsTotal: 0,
 			sequenceRunning: false,
-			maxRacks: 64,
 			sequenceStartTs: 0,
 			sequenceTimeoutMs: 1000,
 		}
-		this.logLevel = 'info'
-		this._json = { routing: '', midi: '' }
-		// HTTP server state
-		this._http = { server: null, port: 8010, started: false }
+        this.rackCount = defaults.rackCount
+        this.channelCount = defaults.channelCount
+        this.midiMap = defaults.midi
+        this.emptyMapping = defaults.mapping(this.rackCount)
+        this.rackMap = this.emptyMapping
+
+		this.logLevel = defaults.logLevel ?? 'error'
+		this._http = defaults.httpSettings
+
 	}
 
 	async init(config) {
 		this.config = config
-		this._applyConfig()
-		this.loadDefaultMapping()
+		this._applyConfigToLocalScopes()
 		await this._loadAllJsonFromConfig()
 		this.updateStatus(InstanceStatus.Ok)
 		this.updateActions()
@@ -40,19 +42,6 @@ class ModuleInstance extends InstanceBase {
 		await this._startHttpServer()
 	}
 
-	loadDefaultMapping() {
-		if (!this.config.racks) this.config.racks = []
-
-		const maxRacks = parseInt(this.config?.maxRacks, 10) || this.state.maxRacks || 64
-		for (let rack = 1; rack <= maxRacks; rack++) {
-			if (!rack in this.config.racks || this.config.racks[rack] === '' || this.config.racks[rack] == null) {
-				this.config.racks[rack] = {
-					"id": rack,
-					"value": null
-				}
-			}
-		}
-	}
 
 	async destroy() {
 		this.log('debug', 'destroy')
@@ -61,8 +50,7 @@ class ModuleInstance extends InstanceBase {
 
 	async configUpdated(config) {
 		this.config = config
-		this._applyConfig()
-		await this._loadAllJsonFromConfig()
+		this._applyConfigToLocalScopes(true)
 		try {
 			this.updateActions()
 		} catch {}
@@ -72,9 +60,9 @@ class ModuleInstance extends InstanceBase {
 		try {
 			this.updateVariableDefinitions()
 		} catch {}
-		const desiredPort = parseInt(this.config?.httpPort, 10) || this._http.port
-		this.config.httpPort = desiredPort
+		const desiredPort = parseInt(this.config?.http.port, 10)
 		if (desiredPort !== this._http.port) {
+            this._http.port = desiredPort
 			await this._stopHttpServer()
 			await this._startHttpServer()
 		}
@@ -101,11 +89,11 @@ class ModuleInstance extends InstanceBase {
 					{ id: 'info', label: 'info' },
 					{ id: 'debug', label: 'debug' },
 				],
-				default: this.logLevel || 'error',
+				default: this.logLevel,
 			},
 			{
 				type: 'dropdown',
-				id: 'maxRacks',
+				id: 'rackCount',
 				label: 'Rack configuration',
 				choices: [
 					{ id: 64, label: '64' },
@@ -114,15 +102,15 @@ class ModuleInstance extends InstanceBase {
 					{ id: 8, label: '8' },
 					{ id: 4, label: '4' },
 				],
-				default: this.state.maxRacks || 64,
+				default: this.rackCount,
 			},
 			{
 				type: 'number',
-				id: 'httpPort',
+				id: 'http.port',
 				label: 'HTTP Port',
 				min: 1,
 				max: 65535,
-				default: this.config?.httpPort || this._http.port,
+				default: this._http.port,
 				tooltip: 'Port for the Fastify HTTP server',
 			},
 			{
@@ -130,12 +118,12 @@ class ModuleInstance extends InstanceBase {
 				id: 'midiMap',
 				label: 'Superrack MIDI Map (JSON)',
 				width: 12,
-				default: this._json.midi ? this._json.midi : JSON.stringify(superrackMidiMap),
+				default: this.midiMap,
 				multiline: true,
 			},
 		]
 
-		/*const maxRacks = parseInt(this.config?.maxRacks, 10) || this.state.maxRacks || 64
+		/*const maxRacks = parseInt(this.config?.maxRacks, 10) || this.rackCount || 64
 		for (let rack = 1; rack <= maxRacks; rack++) {
 			if (!(rack in this.config.racks) || this.config.racks[rack] === '') {
 				this.config.racks[rack] = {
@@ -156,22 +144,28 @@ class ModuleInstance extends InstanceBase {
 		return fields
 	}
 
-	_applyConfig() {
+	_applyConfigToLocalScopes(preventConfigReupdate = false) {
 		this.logLevel = this.config?.logLevel || 'error'
-		this._http.port = this.config?.httpPort || this._http.port
-		const mr = parseInt(this.config?.maxRacks, 10)
-		if ([64, 32, 16, 8, 4].includes(mr)) this.state.maxRacks = mr
+		this._http.port = this.config?.http?.port || this._http.port
+		const mr = parseInt(this.config?.rackCount, 10)
+		if ([64, 32, 16, 8, 4].includes(mr)) this.rackCount = mr
+        if (this.config.rackCount !== this.rackCount) this.config.rackCount = mr
 
-		if (this.config?.midiMap) {
-			if (!this._json.midi) {
-				this._json.midi = JSON.stringify(superrackMidiMap)
-			} else {
-				this._json.midi = this.config.midiMap
-			}
-		} else {
-			this._json.midi = JSON.stringify(superrackMidiMap)
-			this.config.midiMap = JSON.stringify(superrackMidiMap)
-		}
+        if (this.config?.midiMap && this.config.midiMap !== {}) {
+            this.midiMap = this.config.midiMap
+        } else {
+            this.config.midiMap = this.midiMap
+        }
+
+        if (this.config?.rackMap && this.config.rackMap !== {}) {
+            this.rackMap = this.config.rackMap
+        } else {
+            this.config.rackMap = this.rackMap
+        }
+
+        if (!preventConfigReupdate) {
+            this.saveConfig(this.config)
+        }
 	}
 
 	_sendMidiStep(step) {
@@ -218,11 +212,11 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async _loadAllJsonFromConfig() {
-		this._parseJsonField('midi', this._validateRackMidiMap, { racks: {} })
+		this._parseJsonField('midiMap', this._validateRackMidiMap, { racks: {} })
 	}
 
 	_parseJsonField(kind, validateFn, defaults) {
-		const raw = this._json[kind] || ''
+		const raw = this?.[kind] || ''
 		let parsed = defaults
 		if (raw.trim()) {
 			try {
@@ -230,8 +224,8 @@ class ModuleInstance extends InstanceBase {
 				if (validateFn(j)) parsed = j
 			} catch {}
 		}
-		if (kind === 'routing') this.state.routingMatrix = parsed
-		else if (kind === 'midi') this.state.rackMidiMap = parsed
+		if (kind === 'routing') this.rackMap = parsed
+		else if (kind === 'midi') this.midiMap = parsed
 	}
 
 	_validateRackMidiMap(obj) {
@@ -290,7 +284,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_buildHotSnapshotChoices() {
-		const racks = this.state.rackMidiMap?.racks || {}
+        const racks = this.state.midiMap?.racks || {}
 
 		let firstSteps = []
 		for (const rackId in racks) {
@@ -319,7 +313,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_buildHotPluginChoices() {
-		const racks = this.state.rackMidiMap?.racks || {}
+		const racks = this.midiMap?.racks || {}
 
 		let firstSteps = []
 		for (const rackId in racks) {
@@ -348,7 +342,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_buildRackChoices() {
-		const racks = this.state.rackMidiMap?.racks || {}
+		const racks = this.midiMap?.racks || {}
 		return Object.keys(racks).map((r) => ({ id: parseInt(r, 10), label: `Rack ${r}` }))
 	}
 
@@ -393,8 +387,8 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async _executeRackSequence(rackId) {
-		const rack = this.state.rackMidiMap?.racks?.[rackId]
-		if (!rack) {
+        const rack = this.midiMap?.racks?.[rackId]
+        if (!rack) {
 			this._log('warn', 'rack not found', { rackId })
 			return
 		}
@@ -423,7 +417,6 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async _startHttpServer() {
-		const port = parseInt(this.config?.httpPort, 10) || this._http.port
 		if (this._http.started) {
 			this._log('debug', 'HTTP server already running')
 			return
@@ -452,21 +445,9 @@ class ModuleInstance extends InstanceBase {
 			}
 		})
 
-		fastify.get('/reload-config', async (req, reply) => {
-			try {
-				await this._reloadConfig()
-				reply.code(200)
-				return { status: 200, message: 'success'}
-			} catch (e) {
-				this._log('error', 'reload-config failed', { error: e?.message })
-				reply.code(500)
-				return { status: 500, message: 'failed', error: e?.message}
-			}
-		})
-
 		// Neuer Endpoint: Aktuelle Mappings aus der Config abrufen
 		fastify.get('/patch/mappings', async (req, reply) => {
-			const maxRacks = parseInt(this.config?.maxRacks, 10) || this.state.maxRacks || 64
+			const maxRacks = parseInt(this.config?.maxRacks, 10) || this.rackCount || 64
 			console.log(this.config)
 			reply.code(200)
 			return { success: true, mapping: this.config.racks, meta: { maxRacks, numChannels: 99 } }
@@ -474,7 +455,7 @@ class ModuleInstance extends InstanceBase {
 
 		fastify.get('/config/reset', async (req, reply) => {
 			this.saveConfig({})
-			this._applyConfig()
+			this._applyConfigToLocalScopes()
 			this.updateActions()
 			this.updateFeedbacks()
 			this.updateVariableDefinitions()
@@ -489,7 +470,7 @@ class ModuleInstance extends InstanceBase {
 				this.config.racks = mapping
 
 				this.saveConfig(this.config)
-				this._applyConfig()
+				this._applyConfigToLocalScopes()
 				this.updateActions()
 				this.updateFeedbacks()
 				this.updateVariableDefinitions()
@@ -524,7 +505,7 @@ class ModuleInstance extends InstanceBase {
 				this.config.racks[rackId] = rackConfig
 
 				this.saveConfig(this.config)
-				this._applyConfig()
+				this._applyConfigToLocalScopes()
 				this.updateActions()
 				this.updateFeedbacks()
 				this.updateVariableDefinitions()
@@ -537,32 +518,24 @@ class ModuleInstance extends InstanceBase {
 			}
 		})
 
-		try {
-			await fastify.listen({ port, host: '0.0.0.0' })
+        const host  = '0.0.0.0'
+        try {
+			await fastify.listen({ port: this._http.port, host: host })
 			this._http.server = fastify
-			this._http.port = port
 			this._http.started = true
-			this._log('info', 'HTTP server started', { port })
+			this._log('info', `HTTP server started, listening on ${host}:${this._http.port}`)
 		} catch (err) {
-			this._log('error', 'Failed to start HTTP server', { error: err?.message, port })
+			this._log('error', `Failed to start HTTP server on ${host}:${this._http.port}`)
 		}
-	}
-
-	async _reloadConfig() {
-		this._applyConfig()
-		try { this.updateActions() } catch {}
-		try { this.updateFeedbacks() } catch {}
-		try { this.updateVariableDefinitions() } catch {}
-		this._log('info', 'Config reloaded via HTTP')
 	}
 
 	async _stopHttpServer() {
 		if (this._http.server && this._http.started) {
 			try {
 				await this._http.server.close()
-				this._log('info', 'HTTP server stopped', { port: this._http.port })
+				this._log('info', 'HTTP server stopped')
 			} catch (err) {
-				this._log('error', 'Failed to stop HTTP server', { error: err?.message })
+				this._log('error', 'Failed to stop HTTP server')
 			}
 		}
 		this._http.server = null
