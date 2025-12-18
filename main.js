@@ -366,7 +366,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async _executeRackSequence(rackId) {
-        const rack = this.midiMap?.racks?.[rackId]
+        const rack = JSON.parse(this.midiMap)?.racks?.[rackId]
         if (!rack) {
 			this._log('warn', 'rack not found', { rackId })
 			return
