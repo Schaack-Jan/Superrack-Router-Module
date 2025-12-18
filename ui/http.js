@@ -37,7 +37,7 @@ const _startHttpServer = async function (instance) {
     fastify.get('/patch/mappings', async (req, reply) => {
         const maxRacks = parseInt(instance.config?.maxRacks, 10) || instance.rackCount || 64
         reply.code(200)
-        return { success: true, mapping: instance.config.racks, meta: { maxRacks, numChannels: 99 } }
+        return { success: true, mapping: instance.config.racks, meta: { maxRacks, numChannels: instance.channelCount } }
     })
 
     fastify.get('/config/reset', async (req, reply) => {
