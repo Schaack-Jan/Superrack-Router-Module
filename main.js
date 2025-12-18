@@ -76,7 +76,7 @@ class ModuleInstance extends InstanceBase {
 				id: 'info_intro',
 				label: 'Info',
 				value:
-					'This module does not open its own MIDI connection. Additionally, create a Generic-MIDI instance and use actions there (CC) with the variables from the help.',
+					'This module does not open its own MIDI connection. Additionally, create a Generic-MIDI instance and use actions there (CC) with the variables from the help. <a href="http://127.0.0.1:8010/patch" target="_blank" rel="noopener noreferrer">Routepatch</a>',
 			},
 			{
 				type: 'dropdown',
