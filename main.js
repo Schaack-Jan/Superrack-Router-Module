@@ -4,8 +4,7 @@ const UpdateActions = require('./actions')
 const UpdateFeedbacks = require('./feedbacks')
 const UpdateVariableDefinitions = require('./variables')
 const defaults = require('./default-variables')
-const fastifyFactory = require('fastify')
-const fastifyStatic = require('@fastify/static')
+const { startHttpServer, stopHttpServer } = require('./ui/http')
 
 class ModuleInstance extends InstanceBase {
     constructor(internal) {
@@ -39,13 +38,13 @@ class ModuleInstance extends InstanceBase {
 		this.updateActions()
 		this.updateFeedbacks()
 		this.updateVariableDefinitions()
-		await this._startHttpServer()
+		await startHttpServer(this)
 	}
 
 
 	async destroy() {
 		this.log('debug', 'destroy')
-		await this._stopHttpServer()
+		await stopHttpServer(this)
 	}
 
 	async configUpdated(config) {
@@ -63,8 +62,8 @@ class ModuleInstance extends InstanceBase {
 		const desiredPort = parseInt(this.config?.http.port, 10)
 		if (desiredPort !== this._http.port) {
             this._http.port = desiredPort
-			await this._stopHttpServer()
-			await this._startHttpServer()
+			this._http = await stopHttpServer(this._http, this)
+			this._http = await startHttpServer(this._http, this)
 		}
 	}
 
@@ -414,132 +413,6 @@ class ModuleInstance extends InstanceBase {
 			if (step.delay > 0) await new Promise((res) => setTimeout(res, step.delay))
 		}
 		this._log('info', 'ended rack sequence', { rackId })
-	}
-
-	async _startHttpServer() {
-		if (this._http.started) {
-			this._log('debug', 'HTTP server already running')
-			return
-		}
-		const fastify = fastifyFactory({ logger: false })
-
-		// Static für Patch-UI (Fastify v5 + @fastify/static v8)
-		fastify.register(fastifyStatic, {
-			root: [require('path').join(__dirname, 'public'), __dirname],
-			prefix: '/patch/',
-		})
-
-		// Root der Patch-UI
-		fastify.get('/patch', async (req, reply) => {
-			return reply.sendFile('public/index.html')
-		})
-		fastify.get('/patch/', async (req, reply) => {
-			return reply.sendFile('public/index.html')
-		})
-
-		fastify.get('/health', async (req, reply) => {
-			return {
-				status: 'ok',
-				sequenceRunning: this.state.sequenceRunning,
-				activeSourceIndex: this.state.activeSourceIndex,
-			}
-		})
-
-		// Neuer Endpoint: Aktuelle Mappings aus der Config abrufen
-		fastify.get('/patch/mappings', async (req, reply) => {
-			const maxRacks = parseInt(this.config?.maxRacks, 10) || this.rackCount || 64
-			console.log(this.config)
-			reply.code(200)
-			return { success: true, mapping: this.config.racks, meta: { maxRacks, numChannels: 99 } }
-		})
-
-		fastify.get('/config/reset', async (req, reply) => {
-			this.saveConfig({})
-			this._applyConfigToLocalScopes()
-			this.updateActions()
-			this.updateFeedbacks()
-			this.updateVariableDefinitions()
-		})
-
-		// Neuer Endpunkt: Mappings anwenden (anschliessen)
-		fastify.post('/patch/update', async (req, reply) => {
-			try {
-				const body = req.body || {}
-
-				const mapping = body.mapping || []
-				this.config.racks = mapping
-
-				this.saveConfig(this.config)
-				this._applyConfigToLocalScopes()
-				this.updateActions()
-				this.updateFeedbacks()
-				this.updateVariableDefinitions()
-
-				reply.code(200)
-				return { status: 200, result: { updated: mapping.length, total: mapping.length } }
-			} catch (e) {
-				this._log('error', 'HTTP update failed', { error: e?.message })
-				reply.code(500)
-				return { status: 500, error: e?.message }
-			}
-		})
-
-		fastify.patch('/rack/:id', async (req, reply) => {
-			try {
-				const { id } = req.params || {}
-				const body = req.body || {}
-				const rackId = parseInt(id, 10)
-				if (isNaN(rackId)) {
-					reply.code(400)
-					return { status: 400, error: 'invalid rack id' }
-				}
-
-				const rackConfig = this.config.racks?.[rackId] || { id: rackId, value: null }
-				const newValue = body.value
-				if (newValue == null || isNaN(parseInt(newValue, 10))) {
-					reply.code(400)
-					return { status: 400, error: 'invalid channel value' }
-				}
-
-				rackConfig.value = parseInt(newValue, 10)
-				this.config.racks[rackId] = rackConfig
-
-				this.saveConfig(this.config)
-				this._applyConfigToLocalScopes()
-				this.updateActions()
-				this.updateFeedbacks()
-				this.updateVariableDefinitions()
-				reply.code(200)
-				return { status: 200, message: 'success' }
-			} catch (e) {
-				this._log('error', 'HTTP rack patch failed', { error: e?.message })
-				reply.code(500)
-				return { status: 500, error: e?.message }
-			}
-		})
-
-        const host  = '0.0.0.0'
-        try {
-			await fastify.listen({ port: this._http.port, host: host })
-			this._http.server = fastify
-			this._http.started = true
-			this._log('info', `HTTP server started, listening on ${host}:${this._http.port}`)
-		} catch (err) {
-			this._log('error', `Failed to start HTTP server on ${host}:${this._http.port}`)
-		}
-	}
-
-	async _stopHttpServer() {
-		if (this._http.server && this._http.started) {
-			try {
-				await this._http.server.close()
-				this._log('info', 'HTTP server stopped')
-			} catch (err) {
-				this._log('error', 'Failed to stop HTTP server')
-			}
-		}
-		this._http.server = null
-		this._http.started = false
 	}
 }
 
