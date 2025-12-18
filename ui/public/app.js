@@ -1,5 +1,6 @@
 let NUM_RACKS;
 let NUM_CHANNELS;
+let EMPTY_MAPPING
 
 let isMouseDown = false;
 let rackMappings = {};
@@ -34,6 +35,7 @@ async function startupPatchMatrix(res) {
   rackMappings = data.mapping || [];
   NUM_RACKS = data.meta.maxRacks || 0;
   NUM_CHANNELS = data.meta.numChannels || 0;
+  EMPTY_MAPPING = data.meta.emptyMapping
 
   patchContainer.innerHTML = '';
   const table = document.createElement('div');
@@ -101,12 +103,11 @@ function selectChannelForRack(rack, channel) {
 }
 
 function clearAllMappings() {
-  for (let rack = 1; rack <= NUM_RACKS; rack++) {
-    rackMappings[rack].value = null;
-    for (let channel = 1; channel <= NUM_CHANNELS; channel++) {
-      const cell = document.querySelector(`div[data-rack="${rack}"][data-channel="${channel}"]`);
-      if (cell) cell.classList.remove('active');
-    }
+  rackMappings = EMPTY_MAPPING
+  let parent = document.getElementById('patch-matrix-container')
+  const activeCells = parent.querySelectorAll('[data-rack][data-channel].active')
+  for (const cell of activeCells) {
+    cell.classList.remove('active')
   }
 }
 
