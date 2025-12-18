@@ -87,23 +87,25 @@ async function startupPatchMatrix(res) {
 }
 
 function selectChannelForRack(rack, channel) {
-  rackMappings[rack].value = channel;
-
-  const clickedCell = document.querySelector(`div[data-rack="${rack}"][data-channel="${channel}"]`);
-  const activeCell = document.querySelector(`div[data-rack="${rack}"].active`);
-  const otherActiveCells = document.querySelectorAll(`div[data-rack="${rack}"].active`);
-
-  if (activeCell === clickedCell) {
-    rackMappings[rack].value = null;
-    if (clickedCell) clickedCell.classList.remove('active');
-  } else {
-    rackMappings[rack].value = channel;
-    if (activeCell) activeCell.classList.remove('active');
-    for (const cell of otherActiveCells) {
-      cell.classList.remove('active');
+    for (let r = 1; r < rackMappings.length; r++) {
+        if (r !== rack && rackMappings[r]?.value === channel) {
+            rackMappings[r].value = null;
+            // Deaktiviere die Zelle im DOM
+            const cell = document.querySelector(`div[data-rack="${r}"][data-channel="${channel}"]`);
+            if (cell) cell.classList.remove('active');
+        }
     }
-    clickedCell.classList.add('active');
-  }
+
+    const cells = document.querySelectorAll(`div[data-rack="${rack}"]`);
+    cells.forEach(cell => cell.classList.remove('active'));
+
+    if (rackMappings[rack].value === channel) {
+        rackMappings[rack].value = null;
+    } else {
+        rackMappings[rack].value = channel;
+        const clickedCell = document.querySelector(`div[data-rack="${rack}"][data-channel="${channel}"]`);
+        if (clickedCell) clickedCell.classList.add('active');
+    }
 }
 
 function clearAllMappings() {
