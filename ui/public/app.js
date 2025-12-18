@@ -22,14 +22,15 @@ function setStatus(connected) {
 
 function initPatchMatrix() {
   fetch('/patch/mappings').then(res => startupPatchMatrix(res));
+
+  setInterval(() => {
+    fetch('/health').then(res => res.json()).then(data => setStatus((data.status ?? 'disconnected') === 'ok'));
+  }, 10000)
 }
 
 async function startupPatchMatrix(res) {
   const data = await res.json();
-  if (!data) {
-    setStatus(false);
-    return;
-  }
+  setStatus(data?.success ?? false);
 
   clearAllMappings();
   rackMappings = data.mapping || [];
