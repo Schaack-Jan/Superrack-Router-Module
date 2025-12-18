@@ -5,9 +5,10 @@ const UpdateFeedbacks = require('./feedbacks')
 const UpdateVariableDefinitions = require('./variables')
 const defaults = require('./default-variables')
 const { startHttpServer, stopHttpServer } = require('./ui/http')
+const { MidiManager } = require('./midi')
 
 class ModuleInstance extends InstanceBase {
-    constructor(internal) {
+	constructor(internal) {
 		super(internal)
 		this.state = {
 			activeSourceIndex: null,
@@ -27,13 +28,15 @@ class ModuleInstance extends InstanceBase {
 
 		this.logLevel = defaults.logLevel ?? 'error'
 		this._http = defaults.httpSettings
-
+		this._midi = new MidiManager((level, msg, data) => this._log(level, msg, data))
 	}
 
 	async init(config) {
 		this.config = config
 		this._applyConfigToLocalScopes()
 		await this._loadAllJsonFromConfig()
+		// Apply MIDI config and refresh ports before building config fields
+		this._midi.applyConfig(this.config?.midi)
 		this.updateStatus(InstanceStatus.Ok)
 		this.updateActions()
 		this.updateFeedbacks()
@@ -45,20 +48,17 @@ class ModuleInstance extends InstanceBase {
 	async destroy() {
 		this.log('debug', 'destroy')
 		await stopHttpServer(this)
+		this._midi.destroy()
 	}
 
 	async configUpdated(config) {
 		this.config = config
 		this._applyConfigToLocalScopes(true)
-		try {
-			this.updateActions()
-		} catch {}
-		try {
-			this.updateFeedbacks()
-		} catch {}
-		try {
-			this.updateVariableDefinitions()
-		} catch {}
+		// re-apply midi config
+		this._midi.applyConfig(this.config?.midi)
+		try { this.updateActions() } catch {}
+		try { this.updateFeedbacks() } catch {}
+		try { this.updateVariableDefinitions() } catch {}
 		const desiredPort = parseInt(this.config?.http.port, 10)
 		if (desiredPort !== this._http.port) {
             this._http.port = desiredPort
@@ -68,7 +68,14 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	getConfigFields() {
-        this.config = this.config || {};
+        this.config = this.config || {}
+        const midiAvailable = this._midi.isAvailable()
+        let outputChoices = this._midi.getOutputChoices()
+        const hasOutputs = Array.isArray(outputChoices) && outputChoices.length > 0
+        if (!hasOutputs) {
+            // Provide a clear fallback entry to avoid 'undefined' rendering
+            outputChoices = [{ id: '__none__', label: 'No MIDI outputs found' }]
+        }
 
 		return [
 			{
@@ -76,7 +83,11 @@ class ModuleInstance extends InstanceBase {
 				id: 'info_intro',
 				label: 'Info',
 				value:
-					'This module does not open its own MIDI connection. Additionally, create a Generic-MIDI instance and use actions there (CC) with the variables from the help.',
+					midiAvailable
+						? (hasOutputs
+							? 'Internal MIDI can be enabled to send messages directly to selected ports. Generic-MIDI can still be used in parallel.'
+							: 'Internal MIDI is available but no outputs were found. Ensure your MIDI devices/virtual ports (e.g., loopMIDI) are present.')
+						: 'Internal MIDI unavailable: native addons are disabled. Use Generic-MIDI or enable native addons in the Companion runtime.'
 			},
 			{
 				type: 'dropdown',
@@ -120,6 +131,24 @@ class ModuleInstance extends InstanceBase {
 				default: this.midiMap,
 				multiline: true,
 			},
+			{
+				type: 'checkbox',
+				id: 'midi.enabled',
+				label: 'Enable internal MIDI (experimental)',
+				default: !!(this.config?.midi?.enabled),
+				tooltip: 'If enabled, the module will open selected MIDI outputs and send the steps directly.',
+				enabled: midiAvailable && hasOutputs,
+			},
+			{
+				type: 'dropdown',
+				id: 'midi.outputs',
+				label: 'MIDI Outputs',
+				multiple: true,
+				choices: outputChoices,
+				default: hasOutputs && Array.isArray(this.config?.midi?.outputs) ? this.config.midi.outputs : [],
+				tooltip: 'Select one or more MIDI output ports to send messages to.',
+				enabled: midiAvailable && hasOutputs,
+			},
 		]
 	}
 
@@ -142,41 +171,28 @@ class ModuleInstance extends InstanceBase {
             this.config.rackMap = this.rackMap
         }
 
+        // Ensure midi config object exists and is persisted
+		if (!this.config.midi) this.config.midi = { enabled: false, outputs: [] }
+		if (!Array.isArray(this.config.midi.outputs)) this.config.midi.outputs = []
+		if (typeof this.config.midi.enabled !== 'boolean') this.config.midi.enabled = false
+
         if (!preventConfigReupdate) {
             this.saveConfig(this.config)
         }
 	}
 
 	_sendMidiStep(step) {
-		// Statt direkt zu senden: Variablen setzen, von Generic-MIDI aus nutzbar
-		const ch = step.channel
-		let controller = ''
-		let value = ''
-		let status = ''
-		if (step.type === 'cc') {
-			status = 'cc'
-			controller = String(step.controller)
-			value = String(step.value)
-		} else if (step.type === 'noteon') {
-			status = 'noteon'
-			controller = String(step.note)
-			value = String(step.value)
-		} else if (step.type === 'program') {
-			status = 'program'
-			controller = String(step.program)
-			value = ''
-		} else {
-			this._log('warn', 'unknown MIDI Type', { type: step.type })
-			return
+		// Send via internal MIDI (if enabled)
+		try {
+			this._midi.sendStep(step)
+		} catch (e) {
+			this._log('warn', 'internal MIDI send error', { error: e.message })
 		}
+		// Remove old variable-based MIDI simulation per user request; keep timestamp only
 		this.setVariableValues({
-			midi_last_type: status,
-			midi_last_channel: ch,
-			midi_last_controller: controller,
-			midi_last_value: value,
 			last_action_timestamp: Date.now(),
 		})
-		this._log('debug', 'MIDI step prepared', { status, ch, controller, value })
+		this._log('debug', 'MIDI step dispatched', { type: step.type, channel: step.channel })
 	}
 
 	_shouldLog(level) {
