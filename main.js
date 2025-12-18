@@ -337,7 +337,6 @@ class ModuleInstance extends InstanceBase {
 		this.state.sequenceRunning = true
 		this.state.sequenceStartTs = Date.now()
 		this.state.lastRoutedRacks = [rackId]
-		this._updateVariables()
 		await this._executeRackSequence(rackId)
 		this.state.sequenceRunning = false
 		this._log('info', 'routeRack completed', { rackId })
