@@ -263,7 +263,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_buildHotSnapshotChoices() {
-        const racks = this.state.midiMap?.racks || {}
+		const racks = JSON.parse(this.midiMap)?.racks ?? {}
 
 		let firstSteps = []
 		for (const rackId in racks) {
@@ -292,7 +292,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_buildHotPluginChoices() {
-		const racks = this.midiMap?.racks || {}
+		const racks = JSON.parse(this.midiMap)?.racks ?? {}
 
 		let firstSteps = []
 		for (const rackId in racks) {
@@ -321,7 +321,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_buildRackChoices() {
-		const racks = this.midiMap?.racks || {}
+		const racks = JSON.parse(this.midiMap)?.racks ?? {}
 		return Object.keys(racks).map((r) => ({ id: parseInt(r, 10), label: `Rack ${r}` }))
 	}
 
