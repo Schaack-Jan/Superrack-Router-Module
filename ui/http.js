@@ -8,13 +8,13 @@ const _startHttpServer = async function (instance) {
     }
     const fastify = fastifyFactory({ logger: false })
 
-    // Static für Patch-UI (Fastify v5 + @fastify/static v8)
+    // Static for Patch-UI (Fastify v5 + @fastify/static v8)
     fastify.register(fastifyStatic, {
         root: [require('path').join(__dirname, 'public'), __dirname],
         prefix: '/patch/',
     })
 
-    // Root der Patch-UI
+    // Root of the Patch-UI
     fastify.get('/', async (req, reply) => {
         return reply.redirect('patch', 301)
     })
@@ -33,7 +33,7 @@ const _startHttpServer = async function (instance) {
         }
     })
 
-    // Neuer Endpoint: Aktuelle Mappings aus der Config abrufen
+    // New endpoint: Get current mappings from config
     fastify.get('/patch/mappings', async (req, reply) => {
         const maxRacks = parseInt(instance.config?.maxRacks, 10) || instance.rackCount || 64
         reply.code(200)
@@ -48,7 +48,7 @@ const _startHttpServer = async function (instance) {
         instance.updateVariableDefinitions()
     })
 
-    // Neuer Endpunkt: Mappings anwenden (anschliessen)
+    // New endpoint: Apply mappings (connect)
     fastify.post('/patch/update', async (req, reply) => {
         try {
             const body = req.body || {}

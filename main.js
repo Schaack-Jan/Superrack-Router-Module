@@ -134,7 +134,7 @@ class ModuleInstance extends InstanceBase {
 			fields.push({
 				type: 'textinput',
 				id: `racks[${rack}].value`,
-				label: `Kanal Index für Rack ${rack}`,
+				label: `Channel index for rack ${rack}`,
 				width: 3,
 				value: this.config.racks?.[rack]?.value ?? null,
 			})

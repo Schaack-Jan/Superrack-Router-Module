@@ -87,10 +87,11 @@ async function startupPatchMatrix(res) {
 }
 
 function selectChannelForRack(rack, channel) {
+    // Ensure only one channel per rack and only one rack per channel
     for (let r = 1; r < rackMappings.length; r++) {
         if (r !== rack && rackMappings[r]?.value === channel) {
             rackMappings[r].value = null;
-            // Deaktiviere die Zelle im DOM
+            // Deactivate the cell in the DOM
             const cell = document.querySelector(`div[data-rack="${r}"][data-channel="${channel}"]`);
             if (cell) cell.classList.remove('active');
         }
@@ -143,9 +144,9 @@ function importMappings(file) {
           if (cell) cell.classList.add('active');
         }
       }
-      showAlert(`Mapping erfolgreich importiert.`)
+      showAlert(`Mapping imported successfully.`)
     } catch (err) {
-      showAlert(`Mapping Import fehlgeschlagen: ${err.message}`, 'error')
+      showAlert(`Mapping import failed: ${err.message}`, 'error')
     }
   };
   reader.readAsText(file);
@@ -163,9 +164,9 @@ async function loadFromCompanion() {
         if (cell) cell.classList.add('active');
     }
 
-    showAlert('Aktuelle Config aus Companion geladen.')
+    showAlert('Current config loaded from Companion.')
   } catch (err) {
-    showAlert(`Fehler beim Laden der Config: ${err.message}`, 'error')
+    showAlert(`Error loading config: ${err.message}`, 'error')
   }
 }
 
@@ -194,9 +195,9 @@ async function saveToCompanion() {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mapping: rackMappings })
     });
     const data = await res.json();
-    showAlert('Mapping erfolgreich gespeichert.')
+    showAlert('Mapping saved successfully.')
   } catch (err) {
-    showAlert(`Fehler beim Speichern der Config: ${err.message}`, 'error')
+    showAlert(`Error saving config: ${err.message}`, 'error')
   }
 }
 
