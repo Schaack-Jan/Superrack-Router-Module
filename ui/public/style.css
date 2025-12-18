@@ -17,3 +17,55 @@ button:hover { background-color: #005999; }
 .patch-cell-inner { width: 10px; height: 10px; border-radius: 50%; background-color: transparent; }
 .patch-cell.active .patch-cell-inner { background-color: white; }
 
+#alert-container {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-height: 5rem;
+    min-width: 300px;
+    max-width: 90vw;
+    width: 100%;
+    z-index: 9999;
+    display: none;
+}
+
+.custom-alert {
+    padding: 16px 32px 16px 16px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    color: #fff;
+    font-size: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    position: relative;
+    animation: fadein 0.3s;
+}
+
+.custom-alert-success {
+    background: #198754;
+}
+
+.custom-alert-error {
+    background: #dc3545;
+}
+
+.custom-alert .close-btn {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.2em;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.custom-alert .close-btn:hover {
+    opacity: 1;
+}
+
+@keyframes fadein {
+    from { opacity: 0; transform: translateY(-10px);}
+    to { opacity: 1; transform: translateY(0);}
+}

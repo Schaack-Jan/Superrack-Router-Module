@@ -140,9 +140,9 @@ function importMappings(file) {
           if (cell) cell.classList.add('active');
         }
       }
-      alert('Mappings importiert.');
+      showAlert(`Mapping erfolgreich importiert.`)
     } catch (err) {
-      alert('Ungültige Datei: ' + err.message);
+      showAlert(`Mapping Import fehlgeschlagen: ${err.message}`, 'error')
     }
   };
   reader.readAsText(file);
@@ -159,10 +159,30 @@ async function loadFromCompanion() {
         const cell = document.querySelector(`div[data-rack="${map.id}"][data-channel="${map.value}"]`);
         if (cell) cell.classList.add('active');
     }
-    alert('Aktuelle Config geladen.');
+
+    showAlert('Aktuelle Config aus Companion geladen.')
   } catch (err) {
-    alert('Fehler beim Laden der Config: ' + err.message);
+    showAlert(`Fehler beim Laden der Config: ${err.message}`, 'error')
   }
+}
+
+function showAlert(message, type = 'success') {
+    const container = document.getElementById('alert-container')
+    container.style.display = 'block'
+
+    const alertType = type === 'error' || type === 'danger' ? 'error' : 'success'
+    container.innerHTML = `
+    <div class="custom-alert custom-alert-${alertType}">
+      ${message}
+      <button class="close-btn" onclick="this.parentElement.parentElement.style.display='none';this.parentElement.parentElement.innerHTML='';">&times;</button>
+    </div>
+  `
+    container.style.display = 'block'
+
+    setTimeout(() => {
+        container.style.display = 'none'
+        container.innerHTML = ''
+    }, 5000)
 }
 
 async function saveToCompanion() {
@@ -171,9 +191,9 @@ async function saveToCompanion() {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mapping: rackMappings })
     });
     const data = await res.json();
-    alert('Angewendet: ' + (data?.result?.updated ?? 0) + ' Mappings');
+    showAlert('Mapping erfolgreich gespeichert.')
   } catch (err) {
-    alert('Fehler beim Anwenden: ' + err.message);
+    showAlert(`Fehler beim Speichern der Config: ${err.message}`, 'error')
   }
 }
 
