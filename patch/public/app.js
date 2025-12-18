@@ -1,5 +1,5 @@
-const NUM_RACKS = 64;
-const NUM_CHANNELS = 99;
+let NUM_RACKS;
+let NUM_CHANNELS;
 
 let isMouseDown = false;
 let rackMappings = {};
@@ -19,16 +19,22 @@ function setStatus(connected) {
   statusEl.textContent = connected ? 'Connected' : 'Disconnected';
 }
 
-async function ping() {
-  try {
-    const res = await fetch('/health');
-    if (res.ok) setStatus(true); else setStatus(false);
-  } catch {
-    setStatus(false);
-  }
+function initPatchMatrix() {
+  fetch('/patch/mappings').then(res => startupPatchMatrix(res));
 }
 
-function initPatchMatrix() {
+async function startupPatchMatrix(res) {
+  const data = await res.json();
+  if (!data) {
+    setStatus(false);
+    return;
+  }
+
+  clearAllMappings();
+  rackMappings = data.mapping || [];
+  NUM_RACKS = data.meta.maxRacks || 0;
+  NUM_CHANNELS = data.meta.numChannels || 0;
+
   patchContainer.innerHTML = '';
   const table = document.createElement('div');
   table.className = 'patch-table';
@@ -46,7 +52,6 @@ function initPatchMatrix() {
   }
 
   for (let r = 1; r <= NUM_RACKS; r++) {
-    rackMappings[r] = null;
 
     const label = document.createElement('div');
     label.className = 'patch-rack-label';
@@ -56,14 +61,16 @@ function initPatchMatrix() {
     for (let c = 1; c <= NUM_CHANNELS; c++) {
       const cell = document.createElement('div');
       cell.className = 'patch-cell';
-      cell.id = `cell-${r}-${c}`;
+      cell.setAttribute('data-rack', r);
+      cell.setAttribute('data-channel', c);
+
       const inner = document.createElement('div');
       inner.className = 'patch-cell-inner';
       cell.appendChild(inner);
 
       cell.addEventListener('click', () => selectChannelForRack(r, c));
-      cell.addEventListener('mousedown', () => { isMouseDown = true; selectChannelForRack(r, c); });
-      cell.addEventListener('mouseenter', () => { if (isMouseDown) selectChannelForRack(r, c); });
+      /*cell.addEventListener('mousedown', () => { isMouseDown = true; selectChannelForRack(r, c); });
+      cell.addEventListener('mouseenter', () => { if (isMouseDown) selectChannelForRack(r, c); });*/
 
       table.appendChild(cell);
     }
@@ -74,31 +81,37 @@ function initPatchMatrix() {
 }
 
 function selectChannelForRack(rack, channel) {
-  rackMappings[rack] = channel;
-  for (let c = 1; c <= NUM_CHANNELS; c++) {
-    const cell = document.getElementById(`cell-${rack}-${c}`);
-    if (cell) cell.classList.remove('active');
+  rackMappings[rack].value = channel;
+
+  const clickedCell = document.querySelector(`div[data-rack="${rack}"][data-channel="${channel}"]`);
+  const activeCell = document.querySelector(`div[data-rack="${rack}"].active`);
+  const otherActiveCells = document.querySelectorAll(`div[data-rack="${rack}"].active`);
+
+  if (activeCell === clickedCell) {
+    rackMappings[rack].value = null;
+    if (clickedCell) clickedCell.classList.remove('active');
+  } else {
+    rackMappings[rack].value = channel;
+    if (activeCell) activeCell.classList.remove('active');
+    for (const cell of otherActiveCells) {
+      cell.classList.remove('active');
+    }
+    clickedCell.classList.add('active');
   }
-  const selectedCell = document.getElementById(`cell-${rack}-${channel}`);
-  if (selectedCell) selectedCell.classList.add('active');
 }
 
 function clearAllMappings() {
-  for (let r = 1; r <= NUM_RACKS; r++) {
-    rackMappings[r] = null;
-    for (let c = 1; c <= NUM_CHANNELS; c++) {
-      const cell = document.getElementById(`cell-${r}-${c}`);
+  for (let rack = 1; rack <= NUM_RACKS; rack++) {
+    rackMappings[rack].value = null;
+    for (let channel = 1; channel <= NUM_CHANNELS; channel++) {
+      const cell = document.querySelector(`div[data-rack="${rack}"][data-channel="${channel}"]`);
       if (cell) cell.classList.remove('active');
     }
   }
 }
 
 function exportMappings() {
-  const mappings = {};
-  for (let r = 1; r <= NUM_RACKS; r++) {
-    if (rackMappings[r] !== null) mappings[r] = rackMappings[r];
-  }
-  const blob = new Blob([JSON.stringify({ mappings }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ rackMappings }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -118,8 +131,8 @@ function importMappings(file) {
         const r = parseInt(rack, 10);
         const ch = parseInt(channel, 10);
         if (r >= 1 && r <= NUM_RACKS && ch >= 1 && ch <= NUM_CHANNELS) {
-          rackMappings[r] = ch;
-          const cell = document.getElementById(`cell-${r}-${ch}`);
+          rackMappings[r].value = ch;
+          const cell = document.querySelector(`div[data-rack="${r}"][data-channel="${ch}"]`);
           if (cell) cell.classList.add('active');
         }
       }
@@ -136,15 +149,10 @@ async function loadFromCompanion() {
     const res = await fetch('/patch/mappings');
     const data = await res.json();
     clearAllMappings();
-    const mappings = data.mappings || {};
-    for (const [rack, channel] of Object.entries(mappings)) {
-      const r = parseInt(rack, 10);
-      const ch = parseInt(channel, 10);
-      if (r >= 1 && r <= NUM_RACKS && ch >= 1 && ch <= NUM_CHANNELS) {
-        rackMappings[r] = ch;
-        const cell = document.getElementById(`cell-${r}-${ch}`);
+    let mapping = data.mapping || [];
+    for (const map of mapping) {
+        const cell = document.querySelector(`div[data-rack="${map.id}"][data-channel="${map.value}"]`);
         if (cell) cell.classList.add('active');
-      }
     }
     alert('Aktuelle Config geladen.');
   } catch (err) {
@@ -153,13 +161,9 @@ async function loadFromCompanion() {
 }
 
 async function saveToCompanion() {
-  const mappings = {};
-  for (let r = 1; r <= NUM_RACKS; r++) {
-    if (rackMappings[r] !== null) mappings[r] = rackMappings[r];
-  }
   try {
-    const res = await fetch('/patch/anschliessen', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mappings })
+    const res = await fetch('/patch/update', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mapping: rackMappings })
     });
     const data = await res.json();
     alert('Angewendet: ' + (data?.result?.updated ?? 0) + ' Mappings');
@@ -175,5 +179,3 @@ if (exportBtn) exportBtn.addEventListener('click', exportMappings);
 if (importInput) importInput.addEventListener('change', (e) => { if (e.target.files && e.target.files[0]) importMappings(e.target.files[0]); });
 
 initPatchMatrix();
-ping();
-loadFromCompanion();

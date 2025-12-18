@@ -5,7 +5,6 @@ const UpdateFeedbacks = require('./feedbacks')
 const UpdateVariableDefinitions = require('./variables')
 const superrackMidiMap = require('./superrack-midi-map.json')
 const fastifyFactory = require('fastify')
-const { applyMappings } = require('./patch/applyMappings')
 const fastifyStatic = require('@fastify/static')
 
 class ModuleInstance extends InstanceBase {
@@ -13,7 +12,6 @@ class ModuleInstance extends InstanceBase {
 		super(internal)
 		this.state = {
 			routingMatrix: { matrix: {} },
-			rackMidiMap: { racks: {} },
 			activeSourceIndex: null,
 			activeSourceLabel: '',
 			lastRoutedRacks: [],
@@ -33,12 +31,27 @@ class ModuleInstance extends InstanceBase {
 	async init(config) {
 		this.config = config
 		this._applyConfig()
+		this.loadDefaultMapping()
 		await this._loadAllJsonFromConfig()
 		this.updateStatus(InstanceStatus.Ok)
 		this.updateActions()
 		this.updateFeedbacks()
 		this.updateVariableDefinitions()
 		await this._startHttpServer()
+	}
+
+	loadDefaultMapping() {
+		if (!this.config.racks) this.config.racks = []
+
+		const maxRacks = parseInt(this.config?.maxRacks, 10) || this.state.maxRacks || 64
+		for (let rack = 1; rack <= maxRacks; rack++) {
+			if (!rack in this.config.racks || this.config.racks[rack] === '' || this.config.racks[rack] == null) {
+				this.config.racks[rack] = {
+					"id": rack,
+					"value": null
+				}
+			}
+		}
 	}
 
 	async destroy() {
@@ -122,21 +135,23 @@ class ModuleInstance extends InstanceBase {
 			},
 		]
 
-		const maxRacks = parseInt(this.config?.maxRacks, 10) || this.state.maxRacks || 64
-		for (let i = 1; i <= maxRacks; i++) {
-			const key = `rack_channel_index_${i}`
-			if (!(key in this.config) || this.config[key] === '' || this.config[key] == null) {
-				this.config[key] = `${i}`
+		/*const maxRacks = parseInt(this.config?.maxRacks, 10) || this.state.maxRacks || 64
+		for (let rack = 1; rack <= maxRacks; rack++) {
+			if (!(rack in this.config.racks) || this.config.racks[rack] === '') {
+				this.config.racks[rack] = {
+					"id": rack,
+					"value": null
+				}
 			}
 
 			fields.push({
 				type: 'textinput',
-				id: key,
-				label: `Kanal Index für Rack ${i}`,
+				id: `racks[${rack}].value`,
+				label: `Kanal Index für Rack ${rack}`,
 				width: 3,
-				value: this.config?.[key] ?? `${i}`,
+				value: this.config.racks?.[rack]?.value ?? null,
 			})
-		}
+		}*/
 
 		return fields
 	}
@@ -203,7 +218,6 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async _loadAllJsonFromConfig() {
-		this._parseJsonField('routing', this._validateRoutingMatrix, { matrix: {} })
 		this._parseJsonField('midi', this._validateRackMidiMap, { racks: {} })
 	}
 
@@ -218,20 +232,6 @@ class ModuleInstance extends InstanceBase {
 		}
 		if (kind === 'routing') this.state.routingMatrix = parsed
 		else if (kind === 'midi') this.state.rackMidiMap = parsed
-	}
-
-	_validateRoutingMatrix(obj) {
-		if (!obj || typeof obj !== 'object' || !obj.matrix || typeof obj.matrix !== 'object') return false
-		for (const [k, v] of Object.entries(obj.matrix)) {
-			if (!/^\d+$/.test(k)) return false
-			if (!Array.isArray(v)) return false
-			const seen = new Set()
-			for (const r of v) {
-				if (typeof r !== 'number' || r < 1 || r > this.state.maxRacks || seen.has(r)) return false
-				seen.add(r)
-			}
-		}
-		return true
 	}
 
 	_validateRackMidiMap(obj) {
@@ -466,30 +466,72 @@ class ModuleInstance extends InstanceBase {
 
 		// Neuer Endpoint: Aktuelle Mappings aus der Config abrufen
 		fastify.get('/patch/mappings', async (req, reply) => {
-			const mappings = {}
 			const maxRacks = parseInt(this.config?.maxRacks, 10) || this.state.maxRacks || 64
-			for (let r = 1; r <= maxRacks; r++) {
-				const key = `rack_channel_index_${r}`
-				const val = this.config?.[key]
-				const ch = parseInt(val, 10)
-				if (Number.isInteger(ch) && ch >= 1 && ch <= 99) {
-					mappings[r] = ch
-				}
-			}
+			console.log(this.config)
 			reply.code(200)
-			return { success: true, mappings }
+			return { success: true, mapping: this.config.racks, meta: { maxRacks, numChannels: 99 } }
+		})
+
+		fastify.get('/config/reset', async (req, reply) => {
+			this.saveConfig({})
+			this._applyConfig()
+			this.updateActions()
+			this.updateFeedbacks()
+			this.updateVariableDefinitions()
 		})
 
 		// Neuer Endpunkt: Mappings anwenden (anschliessen)
-		fastify.post('/patch/anschliessen', async (req, reply) => {
+		fastify.post('/patch/update', async (req, reply) => {
 			try {
 				const body = req.body || {}
-				const mappings = body.mappings || {}
-				const result = await this.anschliessen(mappings)
+
+				const mapping = body.mapping || []
+				this.config.racks = mapping
+
+				this.saveConfig(this.config)
+				this._applyConfig()
+				this.updateActions()
+				this.updateFeedbacks()
+				this.updateVariableDefinitions()
+
 				reply.code(200)
-				return { status: 200, result }
+				return { status: 200, result: { updated: mapping.length, total: mapping.length } }
 			} catch (e) {
-				this._log('error', 'HTTP anschliessen failed', { error: e?.message })
+				this._log('error', 'HTTP update failed', { error: e?.message })
+				reply.code(500)
+				return { status: 500, error: e?.message }
+			}
+		})
+
+		fastify.patch('/rack/:id', async (req, reply) => {
+			try {
+				const { id } = req.params || {}
+				const body = req.body || {}
+				const rackId = parseInt(id, 10)
+				if (isNaN(rackId)) {
+					reply.code(400)
+					return { status: 400, error: 'invalid rack id' }
+				}
+
+				const rackConfig = this.config.racks?.[rackId] || { id: rackId, value: null }
+				const newValue = body.value
+				if (newValue == null || isNaN(parseInt(newValue, 10))) {
+					reply.code(400)
+					return { status: 400, error: 'invalid channel value' }
+				}
+
+				rackConfig.value = parseInt(newValue, 10)
+				this.config.racks[rackId] = rackConfig
+
+				this.saveConfig(this.config)
+				this._applyConfig()
+				this.updateActions()
+				this.updateFeedbacks()
+				this.updateVariableDefinitions()
+				reply.code(200)
+				return { status: 200, message: 'success' }
+			} catch (e) {
+				this._log('error', 'HTTP rack patch failed', { error: e?.message })
 				reply.code(500)
 				return { status: 500, error: e?.message }
 			}
@@ -503,19 +545,6 @@ class ModuleInstance extends InstanceBase {
 			this._log('info', 'HTTP server started', { port })
 		} catch (err) {
 			this._log('error', 'Failed to start HTTP server', { error: err?.message, port })
-		}
-	}
-
-	async anschliessen(mappings) {
-		// Öffentliche API-Funktion: Mappings (Rack->Channel) anwenden
-		try {
-			const payload = mappings && typeof mappings === 'object' ? mappings : {}
-			const { updated, applied } = await applyMappings(this, payload)
-			this._log('info', 'anschliessen ausgeführt', { updated, appliedCount: Object.keys(applied).length })
-			return { status: 'ok', updated, applied }
-		} catch (e) {
-			this._log('error', 'anschliessen fehlgeschlagen', { error: e?.message })
-			return { status: 'error', error: e?.message }
 		}
 	}
 
