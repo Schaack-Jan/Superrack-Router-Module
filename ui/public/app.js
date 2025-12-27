@@ -12,6 +12,7 @@ const saveBtn = document.getElementById('save-btn');
 const clearBtn = document.getElementById('clear-btn');
 const exportBtn = document.getElementById('export-btn');
 const importInput = document.getElementById('import-input');
+const importBtn = document.getElementById('import-btn');
 
 function setStatus(connected) {
   if (!statusEl) return;
@@ -232,5 +233,6 @@ if (saveBtn) saveBtn.addEventListener('click', saveToCompanion);
 if (clearBtn) clearBtn.addEventListener('click', clearAllMappings);
 if (exportBtn) exportBtn.addEventListener('click', exportMappings);
 if (importInput) importInput.addEventListener('change', (e) => { if (e.target.files && e.target.files[0]) importMappings(e.target.files[0]); });
+if (importBtn) importBtn.addEventListener('click', () => importInput && importInput.click());
 
 initPatchMatrix();
