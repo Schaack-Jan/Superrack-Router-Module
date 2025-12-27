@@ -103,6 +103,15 @@ class ModuleInstance extends InstanceBase {
 				],
 				default: this.rackCount,
 			},
+            {
+                type: 'number',
+                id: 'channelCount',
+                label: 'Channel count',
+                min: 32,
+                max: 512,
+                default: this.channelCount,
+                tooltip: 'Number of channels (max 512)'
+            },
 			{
 				type: 'number',
 				id: 'http.port',
@@ -129,6 +138,15 @@ class ModuleInstance extends InstanceBase {
 		const mr = parseInt(this.config?.rackCount, 10)
 		if ([64, 32, 16, 8, 4].includes(mr)) this.rackCount = mr
         if (this.config.rackCount !== this.rackCount) this.config.rackCount = mr
+
+        // channelCount: clamp to [1,512]
+        const chCountRaw = this.config?.channelCount
+        const chParsed = parseInt(chCountRaw, 10)
+        if (Number.isInteger(chParsed) && chParsed >= 1 && chParsed <= 512) {
+            this.channelCount = chParsed
+        }
+        // ensure config reflects runtime value
+        if (this.config.channelCount !== this.channelCount) this.config.channelCount = this.channelCount
 
         if (this.config?.midiMap && this.config.midiMap !== {}) {
             this.midiMap = this.config.midiMap

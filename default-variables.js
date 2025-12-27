@@ -13,7 +13,7 @@ const getEmptyRackTemplate = rackCount =>{
 
 module.exports = {
     rackCount: 64,
-    channelCount: 512,
+    channelCount: 128,
     midi: superrackMidiMap,
     httpSettings: { server: null, port: 8010, started: false },
     logLevel: 'error',
