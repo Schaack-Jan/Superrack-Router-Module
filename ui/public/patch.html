@@ -24,7 +24,10 @@
       <button id="export-btn" style="margin-left:10px">⬇️ Export JSON</button>-->
     </div>
 
-    <div id="patch-matrix-container"></div>
+    <!-- Parent-Container für das Patchfeld, sorgt für klare Struktur und gezieltes Styling -->
+    <section class="patch-grid-wrapper" aria-label="Patchfeld">
+      <div id="patch-matrix-container" role="grid" aria-colcount="" aria-rowcount=""></div>
+    </section>
   </div>
 
   <script src="/patch/app.js"></script>

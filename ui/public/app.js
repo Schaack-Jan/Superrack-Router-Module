@@ -44,7 +44,7 @@ async function startupPatchMatrix(res) {
   table.style.gridTemplateColumns = `100px repeat(${NUM_CHANNELS}, 30px)`;
 
   const emptyHeader = document.createElement('div');
-  emptyHeader.className = 'patch-header-cell';
+  emptyHeader.className = 'patch-header-cell corner-cell';
   table.appendChild(emptyHeader);
 
   for (let c = 1; c <= NUM_CHANNELS; c++) {
@@ -194,7 +194,7 @@ async function saveToCompanion() {
     const res = await fetch('/patch/update', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mapping: rackMappings })
     });
-    const data = await res.json();
+    await res.json();
     showAlert('Mapping saved successfully.')
   } catch (err) {
     showAlert(`Error saving config: ${err.message}`, 'error')
