@@ -25,7 +25,10 @@ function initPatchMatrix() {
   fetch('/patch/mappings').then(res => startupPatchMatrix(res));
 
   setInterval(() => {
-    fetch('/health').then(res => res.json()).then(data => setStatus((data.status ?? 'disconnected') === 'ok'));
+    fetch('/health')
+      .then(res => res.json())
+      .then(data => setStatus((data.status ?? 'disconnected') === 'ok'))
+      .catch(() => {});
   }, 10000)
 }
 
@@ -68,7 +71,8 @@ async function startupPatchMatrix(res) {
       cell.setAttribute('data-rack', r);
       cell.setAttribute('data-channel', c);
       if (rackMappings[r] && rackMappings[r].value === c) {
-        cell.classList.add('active');
+        // initial successful mapping from backend -> mark success
+        cell.classList.add('success');
       }
 
       const inner = document.createElement('div');
@@ -76,9 +80,6 @@ async function startupPatchMatrix(res) {
       cell.appendChild(inner);
 
       cell.addEventListener('click', () => selectChannelForRack(r, c));
-      /*cell.addEventListener('mousedown', () => { isMouseDown = true; selectChannelForRack(r, c); });
-      cell.addEventListener('mouseenter', () => { if (isMouseDown) selectChannelForRack(r, c); });*/
-
       table.appendChild(cell);
     }
   }
@@ -94,28 +95,95 @@ function selectChannelForRack(rack, channel) {
             rackMappings[r].value = null;
             // Deactivate the cell in the DOM
             const cell = document.querySelector(`div[data-rack="${r}"][data-channel="${channel}"]`);
-            if (cell) cell.classList.remove('active');
+            if (cell) {
+              cell.classList.remove('active');
+              cell.classList.remove('success');
+              cell.classList.remove('pending');
+            }
         }
     }
 
     const cells = document.querySelectorAll(`div[data-rack="${rack}"]`);
-    cells.forEach(cell => cell.classList.remove('active'));
+    cells.forEach(cell => { cell.classList.remove('active'); cell.classList.remove('success'); cell.classList.remove('pending'); });
 
-    if (rackMappings[rack].value === channel) {
+    const clickedCell = document.querySelector(`div[data-rack="${rack}"][data-channel="${channel}"]`);
+
+    // mark pending immediately
+    if (clickedCell) clickedCell.classList.add('pending');
+
+    const previousValue = rackMappings[rack]?.value ?? null;
+
+    // toggle selection
+    if (previousValue === channel) {
         rackMappings[rack].value = null;
     } else {
         rackMappings[rack].value = channel;
-        const clickedCell = document.querySelector(`div[data-rack="${rack}"][data-channel="${channel}"]`);
-        if (clickedCell) clickedCell.classList.add('active');
     }
+
+    // Persist immediately to backend and update UI on response
+    persistMappingUpdate(rack, previousValue).catch(() => {
+        // on error, revert UI and value
+        rackMappings[rack].value = previousValue;
+        if (clickedCell) {
+          clickedCell.classList.remove('pending');
+          if (previousValue && previousValue !== channel) {
+            const prevCell = document.querySelector(`div[data-rack="${rack}"][data-channel="${previousValue}"]`);
+            if (prevCell) prevCell.classList.add('success');
+          }
+        }
+        showAlert('Fehler beim Patchen – Änderung wurde zurückgesetzt', 'error');
+    });
+}
+
+async function persistMappingUpdate(changedRackId, previousValue) {
+  try {
+    const res = await fetch('/patch/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mapping: rackMappings })
+    });
+    const data = await res.json();
+    if (!(data && data.success !== false)) {
+      throw new Error('Backend meldet Fehler');
+    }
+
+    // success: mark the selected cell as success, clear pending
+    const newValue = rackMappings[changedRackId]?.value ?? null;
+    // clear all states for rack
+    const rackCells = document.querySelectorAll(`div[data-rack="${changedRackId}"]`);
+    rackCells.forEach(cell => { cell.classList.remove('active'); cell.classList.remove('pending'); cell.classList.remove('success'); });
+
+    if (newValue != null) {
+      const successCell = document.querySelector(`div[data-rack="${changedRackId}"][data-channel="${newValue}"]`);
+      if (successCell) successCell.classList.add('success');
+    }
+
+    // Also ensure uniqueness UI for any other racks that were auto-cleared above
+    for (let r = 1; r < rackMappings.length; r++) {
+      if (r === changedRackId) continue;
+      const val = rackMappings[r]?.value;
+      if (val == null) {
+        const cleared = document.querySelectorAll(`div[data-rack="${r}"]`);
+        cleared.forEach(c => { c.classList.remove('active'); c.classList.remove('pending'); c.classList.remove('success'); });
+      }
+    }
+
+    // No success alert here (only import success should alert)
+  } catch (err) {
+    // keep error alert
+    showAlert('Fehler beim Patchen – Änderung wurde zurückgesetzt', 'error');
+    throw err;
+  }
 }
 
 function clearAllMappings() {
   rackMappings = EMPTY_MAPPING
   let parent = document.getElementById('patch-matrix-container')
-  const activeCells = parent.querySelectorAll('[data-rack][data-channel].active')
+  const activeCells = parent.querySelectorAll('[data-rack][data-channel].active, [data-rack][data-channel].pending, [data-rack][data-channel].success')
   for (const cell of activeCells) {
     cell.classList.remove('active')
+    cell.classList.remove('pending')
+    cell.classList.remove('success')
   }
 }
 
@@ -188,7 +256,7 @@ async function loadFromCompanion() {
     for (const map of mapping) {
         if (!map) continue
         const cell = document.querySelector(`div[data-rack="${map.id}"][data-channel="${map.value}"]`);
-        if (cell) cell.classList.add('active');
+        if (cell) cell.classList.add('success');
     }
 
     showAlert('Current config loaded from Companion.')
@@ -222,7 +290,6 @@ async function saveToCompanion() {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mapping: rackMappings })
     });
     await res.json();
-    showAlert('Mapping saved successfully.')
   } catch (err) {
     showAlert(`Error saving config: ${err.message}`, 'error')
   }
