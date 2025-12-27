@@ -119,7 +119,15 @@ function clearAllMappings() {
 }
 
 function exportMappings() {
-  const blob = new Blob([JSON.stringify({ rackMappings }, null, 2)], { type: 'application/json' });
+  // Erzeuge flache Struktur { mappings: { rackId: channel } }
+  const mappings = {};
+  if (Array.isArray(rackMappings)) {
+    for (const map of rackMappings) {
+      if (!map || map.value == null) continue;
+      mappings[map.id] = map.value;
+    }
+  }
+  const blob = new Blob([JSON.stringify({ mappings }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -134,14 +142,32 @@ function importMappings(file) {
     try {
       const data = JSON.parse(e.target.result);
       clearAllMappings();
-      const mappings = data.mappings || {};
-      for (const [rack, channel] of Object.entries(mappings)) {
-        const r = parseInt(rack, 10);
-        const ch = parseInt(channel, 10);
-        if (r >= 1 && r <= NUM_RACKS && ch >= 1 && ch <= NUM_CHANNELS) {
-          rackMappings[r].value = ch;
-          const cell = document.querySelector(`div[data-rack="${r}"][data-channel="${ch}"]`);
-          if (cell) cell.classList.add('active');
+      // Unterstütze beide Formate: { mappings: { rack: channel } } und { rackMappings: [...]} oder { mapping: [...] }
+      const mappingsObj = data.mappings || null;
+      const mappingArr = data.rackMappings || data.mapping || null;
+
+      if (mappingsObj && typeof mappingsObj === 'object') {
+        for (const [rack, channel] of Object.entries(mappingsObj)) {
+          const r = parseInt(rack, 10);
+          const ch = parseInt(channel, 10);
+          if (Number.isInteger(r) && Number.isInteger(ch) && r >= 1 && r <= NUM_RACKS && ch >= 1 && ch <= NUM_CHANNELS) {
+            if (!rackMappings[r]) rackMappings[r] = { id: r, value: null };
+            rackMappings[r].value = ch;
+            const cell = document.querySelector(`div[data-rack="${r}"][data-channel="${ch}"]`);
+            if (cell) cell.classList.add('active');
+          }
+        }
+      } else if (Array.isArray(mappingArr)) {
+        for (const map of mappingArr) {
+          if (!map) continue;
+          const r = parseInt(map.id, 10);
+          const ch = parseInt(map.value, 10);
+          if (Number.isInteger(r) && Number.isInteger(ch) && r >= 1 && r <= NUM_RACKS && ch >= 1 && ch <= NUM_CHANNELS) {
+            if (!rackMappings[r]) rackMappings[r] = { id: r, value: null };
+            rackMappings[r].value = ch;
+            const cell = document.querySelector(`div[data-rack="${r}"][data-channel="${ch}"]`);
+            if (cell) cell.classList.add('active');
+          }
         }
       }
       showAlert(`Mapping imported successfully.`)
