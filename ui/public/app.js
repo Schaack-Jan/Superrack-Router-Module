@@ -6,6 +6,7 @@ let isMouseDown = false;
 let rackMappings = {};
 let cellRefs = []; // 2D matrix of cells [rack][channel]
 let rackCells = []; // flat list per rack
+let channelToRack = []; // maps channel -> rack id or null
 
 const patchContainer = document.getElementById('patch-matrix-container');
 const statusEl = document.getElementById('status');
@@ -35,22 +36,59 @@ function initPatchMatrix() {
 }
 
 async function startupPatchMatrix(res) {
-  const data = await res.json();
-  setStatus(data?.success ?? false);
-
-  // Ensure container exists
+  let data;
+  try {
+    data = await res.json();
+  } catch (_) {
+    data = {};
+  }
+  setStatus(Boolean(data && (data.success ?? true)));
   const container = document.getElementById('patch-matrix-container') || patchContainer;
-  if (!container) {
-    console.warn('patch-matrix-container not found');
+  if (!container) { console.warn('patch-matrix-container not found'); return; }
+
+  // Read meta with safe defaults
+  NUM_RACKS = Number(data?.meta?.maxRacks) || 0;
+  NUM_CHANNELS = Number(data?.meta?.numChannels) || 0;
+  EMPTY_MAPPING = Array.isArray(data?.meta?.emptyMapping) ? data.meta.emptyMapping : null;
+
+  // Initialize mappings robustly
+  const incoming = Array.isArray(data?.mapping) ? data.mapping : [];
+  if (NUM_RACKS <= 0 || NUM_CHANNELS <= 0) {
+    // try to infer from incoming mapping
+    for (const m of incoming) {
+      if (!m) continue;
+      NUM_RACKS = Math.max(NUM_RACKS, Number(m.id) || 0);
+      NUM_CHANNELS = Math.max(NUM_CHANNELS, Number(m.value) || 0);
+    }
+  }
+  if (NUM_RACKS <= 0 || NUM_CHANNELS <= 0) {
+    console.warn('No rack/channel meta available; cannot build matrix');
+    container.innerHTML = '<div style="padding:8px">Keine Metadaten für Racks/Kanäle gefunden.</div>';
     return;
   }
 
-  clearAllMappings();
-  rackMappings = data.mapping || [];
-  NUM_RACKS = data.meta.maxRacks || 0;
-  NUM_CHANNELS = data.meta.numChannels || 0;
-  EMPTY_MAPPING = data.meta.emptyMapping
+  // Build rackMappings array of length NUM_RACKS+1
+  rackMappings = new Array(NUM_RACKS + 1);
+  for (let r = 1; r <= NUM_RACKS; r++) {
+    rackMappings[r] = { id: r, value: null };
+  }
+  for (const m of incoming) {
+    if (!m) continue;
+    const r = Number(m.id);
+    const v = Number(m.value);
+    if (r >= 1 && r <= NUM_RACKS && v >= 1 && v <= NUM_CHANNELS) {
+      rackMappings[r].value = v;
+    }
+  }
 
+  // Build quick lookup for channel -> rack
+  channelToRack = new Array(NUM_CHANNELS + 1).fill(null);
+  for (let r = 1; r <= NUM_RACKS; r++) {
+    const v = rackMappings[r].value;
+    if (v != null) channelToRack[v] = r;
+  }
+
+  // Render
   container.innerHTML = '';
   const table = document.createElement('div');
   table.className = 'patch-table';
@@ -71,7 +109,6 @@ async function startupPatchMatrix(res) {
   rackCells = new Array(NUM_RACKS + 1);
 
   for (let r = 1; r <= NUM_RACKS; r++) {
-
     const label = document.createElement('div');
     label.className = 'patch-rack-label';
     label.innerText = `Rack ${r}`;
@@ -85,17 +122,14 @@ async function startupPatchMatrix(res) {
       cell.className = 'patch-cell';
       cell.setAttribute('data-rack', r);
       cell.setAttribute('data-channel', c);
-      if (rackMappings[r] && rackMappings[r].value === c) {
+      if (rackMappings[r].value === c) {
         cell.classList.add('success');
       }
-
       const inner = document.createElement('div');
       inner.className = 'patch-cell-inner';
       cell.appendChild(inner);
-
       cell.addEventListener('click', () => selectChannelForRack(r, c));
       table.appendChild(cell);
-
       cellRefs[r][c] = cell;
       rackCells[r].push(cell);
     }
@@ -123,43 +157,56 @@ if (typeof window !== 'undefined') {
 }
 
 function selectChannelForRack(rack, channel) {
-  // Ensure uniqueness: only one rack per channel
-  for (let r = 1; r < rackMappings.length; r++) {
-    if (r !== rack && rackMappings[r]?.value === channel) {
-      const prevCell = cellRefs[r]?.[channel];
-      if (prevCell) {
-        prevCell.classList.remove('active','success','pending');
-      }
-      rackMappings[r].value = null;
-    }
-  }
-
-  // Clear states for this rack quickly
-  const cells = rackCells[rack] || [];
-  for (const cell of cells) {
-    cell.classList.remove('active','success','pending');
-  }
-
   const clickedCell = cellRefs[rack]?.[channel];
   if (clickedCell) clickedCell.classList.add('pending');
 
-  const previousValue = rackMappings[rack]?.value ?? null;
+  const prevChannel = rackMappings[rack]?.value ?? null;
+  const prevRackForChannel = channelToRack[channel] ?? null;
 
-  // toggle selection
-  if (previousValue === channel) {
-    rackMappings[rack].value = null;
-  } else {
-    rackMappings[rack].value = channel;
+  // If another rack uses this channel, clear only that cell
+  if (prevRackForChannel && prevRackForChannel !== rack) {
+    const otherCell = cellRefs[prevRackForChannel]?.[channel];
+    if (otherCell) otherCell.classList.remove('active','success','pending');
+    rackMappings[prevRackForChannel].value = null;
+    channelToRack[channel] = null;
   }
 
-  persistMappingUpdate(rack, previousValue).catch(() => {
-    rackMappings[rack].value = previousValue;
-    if (clickedCell) {
-      clickedCell.classList.remove('pending');
-      if (previousValue && previousValue !== channel) {
-        const prevCell = cellRefs[rack]?.[previousValue];
-        if (prevCell) prevCell.classList.add('success');
-      }
+  // Update mapping for current rack
+  if (prevChannel === channel) {
+    rackMappings[rack].value = null;
+    channelToRack[channel] = null;
+  } else {
+    // Clear previous cell of this rack, if any
+    if (prevChannel != null) {
+      const prevCell = cellRefs[rack]?.[prevChannel];
+      if (prevCell) prevCell.classList.remove('active','success','pending');
+      channelToRack[prevChannel] = null;
+    }
+    rackMappings[rack].value = channel;
+    channelToRack[channel] = rack;
+  }
+
+  persistMappingUpdate(rack, prevChannel).catch(() => {
+    // rollback mapping and UI
+    if (prevRackForChannel && prevRackForChannel !== rack) {
+      // restore other rack's cell
+      const otherCell = cellRefs[prevRackForChannel]?.[channel];
+      if (otherCell) otherCell.classList.add('success');
+      rackMappings[prevRackForChannel].value = channel;
+      channelToRack[channel] = prevRackForChannel;
+    }
+
+    rackMappings[rack].value = prevChannel;
+    if (clickedCell) clickedCell.classList.remove('pending');
+    if (prevChannel != null) {
+      const prevCell = cellRefs[rack]?.[prevChannel];
+      if (prevCell) prevCell.classList.add('success');
+      channelToRack[prevChannel] = rack;
+    } else {
+      // ensure no residual state on current rack/channel
+      const curCell = cellRefs[rack]?.[channel];
+      if (curCell) curCell.classList.remove('active','success','pending');
+      channelToRack[channel] = prevRackForChannel ?? null;
     }
     showAlert('Fehler beim Patchen – Änderung wurde zurückgesetzt', 'error');
   });
@@ -176,23 +223,16 @@ async function persistMappingUpdate(changedRackId, previousValue) {
     }
 
     const newValue = rackMappings[changedRackId]?.value ?? null;
-    const cells = rackCells[changedRackId] || [];
-    for (const cell of cells) {
-      cell.classList.remove('active','pending','success');
+    // Only update the two relevant cells: previous and new
+    if (previousValue != null) {
+      const prevCell = cellRefs[changedRackId]?.[previousValue];
+      if (prevCell) prevCell.classList.remove('active','pending','success');
     }
-
     if (newValue != null) {
       const successCell = cellRefs[changedRackId]?.[newValue];
-      if (successCell) successCell.classList.add('success');
-    }
-
-    // Also clear other racks that became empty
-    for (let r = 1; r < rackMappings.length; r++) {
-      if (r === changedRackId) continue;
-      const val = rackMappings[r]?.value;
-      if (val == null) {
-        const rc = rackCells[r] || [];
-        for (const c of rc) c.classList.remove('active','pending','success');
+      if (successCell) {
+        successCell.classList.remove('pending');
+        successCell.classList.add('success');
       }
     }
   } catch (err) {
@@ -243,10 +283,19 @@ function importMappings(file) {
       } else {
         rackMappings = [];
       }
+      channelToRack = new Array(NUM_CHANNELS + 1).fill(null);
 
       const assignAndMark = (r, ch) => {
         if (!rackMappings[r]) rackMappings[r] = { id: r, value: null };
+        // Clear previous mapping per rack
+        const oldCh = rackMappings[r].value;
+        if (oldCh != null) {
+          const oldCell = cellRefs[r]?.[oldCh];
+          if (oldCell) oldCell.classList.remove('active','success','pending');
+          channelToRack[oldCh] = null;
+        }
         rackMappings[r].value = ch;
+        channelToRack[ch] = r;
         const cell = cellRefs[r]?.[ch];
         if (cell) { cell.classList.add('pending'); pendingCells.push(cell); }
       }
@@ -285,6 +334,7 @@ function importMappings(file) {
 
       showAlert('Mapping imported successfully.');
     } catch (err) {
+      // remove pending marks efficiently
       for (let r = 1; r <= NUM_RACKS; r++) {
         const rc = rackCells[r] || [];
         for (const c of rc) c.classList.remove('pending');
@@ -305,6 +355,12 @@ async function loadFromCompanion() {
       if (!map) continue;
       const cell = cellRefs[map.id]?.[map.value];
       if (cell) cell.classList.add('success');
+      // keep channelToRack in sync
+      if (Number.isInteger(map.id) && Number.isInteger(map.value)) {
+        channelToRack[map.value] = map.id;
+        if (!rackMappings[map.id]) rackMappings[map.id] = { id: map.id, value: null };
+        rackMappings[map.id].value = map.value;
+      }
     }
     // no success alert here
   } catch (err) {
