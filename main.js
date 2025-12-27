@@ -93,7 +93,7 @@ class ModuleInstance extends InstanceBase {
 			{
 				type: 'dropdown',
 				id: 'rackCount',
-				label: 'Rack configuration',
+				label: 'Rack count',
 				choices: [
 					{ id: 64, label: '64' },
 					{ id: 32, label: '32' },
