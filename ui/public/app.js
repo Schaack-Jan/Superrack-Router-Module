@@ -367,3 +367,38 @@ async function loadFromCompanion() {
     showAlert(`Error loading config: ${err.message}`, 'error');
   }
 }
+
+// Leichte Alert-Hilfe: zeigt Meldungen oben rechts an, fällt auf console zurück
+function showAlert(message, type = 'info', timeoutMs = 3000) {
+  try {
+    let container = document.getElementById('alert-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'alert-container';
+      container.style.position = 'fixed';
+      container.style.top = '12px';
+      container.style.right = '12px';
+      container.style.zIndex = '9999';
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.gap = '8px';
+      document.body.appendChild(container);
+    }
+    const el = document.createElement('div');
+    el.textContent = String(message ?? '');
+    el.style.padding = '8px 12px';
+    el.style.borderRadius = '6px';
+    el.style.fontSize = '13px';
+    el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+    el.style.background = type === 'error' ? '#ffdddd' : type === 'success' ? '#ddffdd' : '#eef3ff';
+    el.style.color = '#222';
+    el.style.border = '1px solid ' + (type === 'error' ? '#ff9999' : type === 'success' ? '#99dd99' : '#bcccff');
+    container.appendChild(el);
+    const timeout = Number.isFinite(timeoutMs) ? timeoutMs : 3000;
+    if (timeout > 0) setTimeout(() => { el.remove(); }, timeout);
+  } catch (_) {
+    // Fallback
+    if (type === 'error') console.error(message);
+    else console.log(message);
+  }
+}
