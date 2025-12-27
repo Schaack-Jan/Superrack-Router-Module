@@ -207,13 +207,21 @@ function exportMappings() {
 
 function importMappings(file) {
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
       clearAllMappings();
+      const pendingCells = [];
       // Unterstütze beide Formate: { mappings: { rack: channel } } und { rackMappings: [...]} oder { mapping: [...] }
       const mappingsObj = data.mappings || null;
       const mappingArr = data.rackMappings || data.mapping || null;
+
+      // reset rackMappings to empty mapping clone if available
+      if (Array.isArray(EMPTY_MAPPING)) {
+        rackMappings = EMPTY_MAPPING.map(m => m ? { id: m.id, value: null } : m);
+      } else {
+        rackMappings = [];
+      }
 
       if (mappingsObj && typeof mappingsObj === 'object') {
         for (const [rack, channel] of Object.entries(mappingsObj)) {
@@ -223,7 +231,7 @@ function importMappings(file) {
             if (!rackMappings[r]) rackMappings[r] = { id: r, value: null };
             rackMappings[r].value = ch;
             const cell = document.querySelector(`div[data-rack="${r}"][data-channel="${ch}"]`);
-            if (cell) cell.classList.add('active');
+            if (cell) { cell.classList.add('pending'); pendingCells.push(cell); }
           }
         }
       } else if (Array.isArray(mappingArr)) {
@@ -235,13 +243,31 @@ function importMappings(file) {
             if (!rackMappings[r]) rackMappings[r] = { id: r, value: null };
             rackMappings[r].value = ch;
             const cell = document.querySelector(`div[data-rack="${r}"][data-channel="${ch}"]`);
-            if (cell) cell.classList.add('active');
+            if (cell) { cell.classList.add('pending'); pendingCells.push(cell); }
           }
         }
       }
-      showAlert(`Mapping imported successfully.`)
+
+      // Persist all imported mappings in one request
+      const res = await fetch('/patch/update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mapping: rackMappings })
+      });
+      const resp = await res.json();
+      if (!(resp && resp.success !== false)) {
+        throw new Error('Backend meldet Fehler beim Import-Speichern');
+      }
+
+      // mark all pending cells as success
+      for (const cell of pendingCells) {
+        cell.classList.remove('pending');
+        cell.classList.add('success');
+      }
     } catch (err) {
-      showAlert(`Mapping import failed: ${err.message}`, 'error')
+      // rollback UI states
+      const parent = document.getElementById('patch-matrix-container');
+      const pending = parent.querySelectorAll('.patch-cell.pending');
+      pending.forEach(c => c.classList.remove('pending'));
+      showAlert(`Mapping import failed: ${err.message}`, 'error');
     }
   };
   reader.readAsText(file);
@@ -259,7 +285,7 @@ async function loadFromCompanion() {
         if (cell) cell.classList.add('success');
     }
 
-    showAlert('Current config loaded from Companion.')
+    // no success alert here
   } catch (err) {
     showAlert(`Error loading config: ${err.message}`, 'error')
   }
