@@ -11,11 +11,14 @@
 	"runtime": {
 		"type": "node22",
 		"api": "nodejs-ipc",
-		"apiVersion": "0.0.0",
+		"apiVersion": "4.0.0",
 		"entrypoint": "../main.js"
 	},
 	"legacyIds": [],
 	"manufacturer": "Waves",
 	"products": ["Superrack Performer", "Superrack SoundGrid"],
-	"keywords": ["waves", "superrack", "routing", "midi", "wing"]
+	"keywords": ["waves", "superrack", "routing", "midi", "wing"],
+	"compatibility": {
+		"minimumCompanionVersion": "4.0.0"
+	}
 }
