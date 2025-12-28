@@ -66,10 +66,30 @@ class ModuleInstance extends InstanceBase {
 		const desiredPort = parseInt(this.config?.http?.port, 10)
 		if (Number.isInteger(desiredPort) && desiredPort !== this._http.port) {
             this._log('info', 'HTTP port change detected', { from: this._http.port, to: desiredPort })
-            this._http.port = desiredPort
-			await stopHttpServer(this)
-			await startHttpServer(this)
+            if (this._http.restarting) {
+                this._log('debug', 'HTTP restart already in progress')
+                return
+            }
+            this._http.restarting = true
+            try {
+                await stopHttpServer(this)
+                this._http.port = desiredPort
+                await startHttpServer(this)
+            } catch (err) {
+                this._log('error', 'Failed to restart HTTP server', { error: err?.message })
+                this.updateStatus(InstanceStatus.Error)
+            } finally {
+                this._http.restarting = false
+            }
 		}
+        // MIDI-Map-Änderung: Actions/Feedbacks/Variables neu bauen
+        const prevMidiMap = JSON.stringify(this.midiMapObj)
+        await this._loadAllJsonFromConfig()
+        if (JSON.stringify(this.midiMapObj) !== prevMidiMap) {
+            this.updateActions()
+            this.updateFeedbacks()
+            this.updateVariableDefinitions()
+        }
 	}
 
 	getConfigFields() {

@@ -2,6 +2,10 @@ const fastifyFactory = require('fastify')
 const fastifyStatic = require('@fastify/static')
 
 const _startHttpServer = async function (instance) {
+    if (instance._http.restarting) {
+        instance._log('debug', 'HTTP server restart in progress')
+        return
+    }
     if (instance._http.started) {
         instance._log('debug', 'HTTP server already running')
         return
@@ -44,19 +48,20 @@ const _startHttpServer = async function (instance) {
     fastify.post('/patch/update', async (req, reply) => {
         try {
             const body = req.body || {}
-
             const mapping = body.mapping || []
-            instance.config.racks = mapping
-            instance.rackMap = mapping
-
-            instance.saveConfig(instance.config)
-            instance._applyConfigToLocalScopes()
-            instance.updateActions()
-            instance.updateFeedbacks()
-            instance.updateVariableDefinitions()
-
+            // Nur speichern, wenn sich das Mapping geändert hat
+            const isChanged = JSON.stringify(instance.config.racks) !== JSON.stringify(mapping)
+            if (isChanged) {
+                instance.config.racks = mapping
+                instance.rackMap = mapping
+                instance.saveConfig(instance.config)
+                instance._applyConfigToLocalScopes()
+                instance.updateActions()
+                instance.updateFeedbacks()
+                instance.updateVariableDefinitions()
+            }
             reply.code(200)
-            return { status: 200, result: { updated: mapping.length-1, total: mapping.length-1 } }
+            return { status: 200, result: { updated: isChanged ? mapping.length-1 : 0, total: mapping.length-1 } }
         } catch (e) {
             instance._log('error', 'HTTP update failed', { error: e?.message })
             reply.code(500)
@@ -105,21 +110,25 @@ const _startHttpServer = async function (instance) {
         instance._http.started = true
         instance._log('info', `HTTP server started, listening on ${host}:${instance._http.port}`)
     } catch (err) {
-        instance._log('error', `Failed to start HTTP server on ${host}:${instance._http.port}`)
+        instance._log('error', `Failed to start HTTP server on ${host}:${instance._http.port}: ${err.message}`)
+        instance.updateStatus && instance.updateStatus('error')
     }
 }
 
 const _stopHttpServer = async function (instance) {
+    if (instance._http.restarting) return
+    instance._http.restarting = true
     if (instance._http.server && instance._http.started) {
         try {
             await instance._http.server.close()
             instance._log('info', 'HTTP server stopped')
         } catch (err) {
-            instance._log('error', 'Failed to stop HTTP server')
+            instance._log('error', 'Failed to stop HTTP server: ' + err.message)
         }
     }
     instance._http.server = null
     instance._http.started = false
+    instance._http.restarting = false
 }
 
 module.exports = {
