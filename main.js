@@ -22,6 +22,7 @@ class ModuleInstance extends InstanceBase {
         this.rackCount = defaults.rackCount
         this.channelCount = defaults.channelCount
         this.midiMap = defaults.midi
+        this.midiMapObj = { racks: {} }
         this.emptyMapping = defaults.mapping(this.rackCount)
         this.rackMap = this.emptyMapping
 
@@ -34,17 +35,19 @@ class ModuleInstance extends InstanceBase {
 		this.config = config
 		this._applyConfigToLocalScopes()
 		await this._loadAllJsonFromConfig()
-		this.updateStatus(InstanceStatus.Ok)
 		this.updateActions()
 		this.updateFeedbacks()
 		this.updateVariableDefinitions()
+		this.updateStatus(InstanceStatus.Ok)
 		await startHttpServer(this)
 	}
 
 
 	async destroy() {
-		this.log('debug', 'destroy')
+		this._log('debug', 'destroy start')
+		this.state.sequenceRunning = false
 		await stopHttpServer(this)
+		this._log('debug', 'destroy done')
 	}
 
 	async configUpdated(config) {
@@ -59,11 +62,12 @@ class ModuleInstance extends InstanceBase {
 		try {
 			this.updateVariableDefinitions()
 		} catch {}
-		const desiredPort = parseInt(this.config?.http.port, 10)
-		if (desiredPort !== this._http.port) {
+		const desiredPort = parseInt(this.config?.http?.port, 10)
+		if (Number.isInteger(desiredPort) && desiredPort !== this._http.port) {
+            this._log('info', 'HTTP port change detected', { from: this._http.port, to: desiredPort })
             this._http.port = desiredPort
-			this._http = await stopHttpServer(this._http, this)
-			this._http = await startHttpServer(this._http, this)
+			await stopHttpServer(this)
+			await startHttpServer(this)
 		}
 	}
 
@@ -76,7 +80,7 @@ class ModuleInstance extends InstanceBase {
 				id: 'info_intro',
 				label: 'Info',
 				value:
-					'This module does not open its own MIDI connection. Additionally, create a Generic-MIDI instance and use actions there (CC) with the variables from the help. <a href="http://127.0.0.1:8010/patch" target="_blank" rel="noopener noreferrer">Routepatch</a>',
+					'This module does not open its own MIDI connection. Additionally, create a Generic-MIDI instance and use actions there (CC) with the variables from the help. The built-in routepatch UI is served by this module on the configured HTTP port (default '+ (this._http?.port ?? '') +').',
 			},
 			{
 				type: 'dropdown',
@@ -110,7 +114,7 @@ class ModuleInstance extends InstanceBase {
                 min: 32,
                 max: 512,
                 default: this.channelCount,
-                tooltip: 'Number of channels (max 512)'
+                tooltip: 'Number of channels (min 32, max 512)'
             },
 			{
 				type: 'number',
@@ -133,34 +137,55 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_applyConfigToLocalScopes(preventConfigReupdate = false) {
-		this.logLevel = this.config?.logLevel || 'error'
-		this._http.port = this.config?.http?.port || this._http.port
-		const mr = parseInt(this.config?.rackCount, 10)
-		if ([64, 32, 16, 8, 4].includes(mr)) this.rackCount = mr
-        if (this.config.rackCount !== this.rackCount) this.config.rackCount = mr
+		let changed = false
+		const prev = { ...this.config }
 
-        // channelCount: clamp to [1,512]
+		const newLogLevel = this.config?.logLevel || 'error'
+		if (newLogLevel !== this.logLevel) {
+			this.logLevel = newLogLevel
+			changed = true
+		}
+
+		const desiredHttpPort = this.config?.http?.port || this._http.port
+		if (desiredHttpPort !== this._http.port) {
+			this._http.port = desiredHttpPort
+			changed = true
+		}
+
+		const mrRaw = this.config?.rackCount
+		const mr = parseInt(mrRaw, 10)
+		if ([64, 32, 16, 8, 4].includes(mr) && mr !== this.rackCount) {
+			this.rackCount = mr
+			changed = true
+		}
+
+        // channelCount: clamp [32,512]
         const chCountRaw = this.config?.channelCount
         const chParsed = parseInt(chCountRaw, 10)
-        if (Number.isInteger(chParsed) && chParsed >= 1 && chParsed <= 512) {
-            this.channelCount = chParsed
+        let clamped = this.channelCount
+        if (Number.isInteger(chParsed)) {
+            clamped = Math.min(512, Math.max(32, chParsed))
         }
-        // ensure config reflects runtime value
-        if (this.config.channelCount !== this.channelCount) this.config.channelCount = this.channelCount
+        if (clamped !== this.channelCount) {
+            this.channelCount = clamped
+            changed = true
+        }
 
-        if (this.config?.midiMap && this.config.midiMap !== {}) {
+        // midiMap remains string in config; ensure present
+        if (typeof this.config?.midiMap === 'string') {
             this.midiMap = this.config.midiMap
-        } else {
+        } else if (!this.config?.midiMap) {
+            this.config = this.config || {}
             this.config.midiMap = this.midiMap
+            changed = true
         }
 
+        // rackMap stays as-is from defaults when present
         if (this.config?.rackMap && this.config.rackMap !== {}) {
             this.rackMap = this.config.rackMap
-        } else {
-            this.config.rackMap = this.rackMap
         }
 
-        if (!preventConfigReupdate) {
+        if (!preventConfigReupdate && changed) {
             this.saveConfig(this.config)
         }
 	}
@@ -204,16 +229,33 @@ class ModuleInstance extends InstanceBase {
 
 	_log(level, msg, data) {
 		if (!this._shouldLog(level)) return
-		const line = `[${level.toUpperCase()}] ${msg}` + (data ? ` ${JSON.stringify(data)}` : '')
-		this.log(level === 'debug' ? 'debug' : level, line)
+		const line = msg + (data ? ` ${JSON.stringify(data)}` : '')
+		this.log(level, line)
 	}
 
 	async _loadAllJsonFromConfig() {
-		this._parseJsonField('midiMap', this._validateRackMidiMap, { racks: {} })
+        // Parse midiMap string once and store validated object
+        const raw = typeof this.config?.midiMap === 'string' ? this.config.midiMap : (this.midiMap || '')
+        let parsed = { racks: {} }
+        if (raw && raw.trim()) {
+            try {
+                const j = JSON.parse(raw)
+                if (this._validateRackMidiMap(j)) {
+                    parsed = j
+                } else {
+                    this._log('warn', 'Invalid midiMap JSON structure, using empty racks')
+                }
+            } catch (e) {
+                this._log('warn', 'Failed to parse midiMap JSON, using empty racks', { error: e.message })
+            }
+        }
+        this.midiMapObj = parsed
 	}
 
 	_parseJsonField(kind, validateFn, defaults) {
-		const raw = this?.[kind] || ''
+		// Retained for backward compat; now only supports kind === 'midiMap'
+		if (kind !== 'midiMap') return
+		const raw = this?.midiMap || ''
 		let parsed = defaults
 		if (raw.trim()) {
 			try {
@@ -221,12 +263,11 @@ class ModuleInstance extends InstanceBase {
 				if (validateFn(j)) parsed = j
 			} catch {}
 		}
-		if (kind === 'routing') this.rackMap = parsed
-		else if (kind === 'midi') this.midiMap = parsed
+        this.midiMapObj = parsed
 	}
 
 	_validateRackMidiMap(obj) {
-		if (!obj || typeof obj !== 'object' || !obj.racks) return false
+		if (!obj || typeof obj !== 'object' || !obj.racks || typeof obj.racks !== 'object') return false
 		for (const [rackId, rack] of Object.entries(obj.racks)) {
 			if (!/^\d+$/.test(rackId)) return false
 			if (
@@ -281,7 +322,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_buildHotSnapshotChoices() {
-		const racks = JSON.parse(this.midiMap)?.racks ?? {}
+		const racks = this.midiMapObj?.racks ?? {}
 
 		let firstSteps = []
 		for (const rackId in racks) {
@@ -310,12 +351,12 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_buildHotPluginChoices() {
-		const racks = JSON.parse(this.midiMap)?.racks ?? {}
+		const racks = this.midiMapObj?.racks ?? {}
 
 		let firstSteps = []
 		for (const rackId in racks) {
 			const steps = racks[rackId]?.midiSteps
-			if (Array.isArray(steps) && steps.length > 0) {
+			if (Array.isArray(steps) && steps.length > 1) {
 				firstSteps.push({
 					...steps[1],
 				})
@@ -339,7 +380,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_buildRackChoices() {
-		const racks = JSON.parse(this.midiMap)?.racks ?? {}
+		const racks = this.midiMapObj?.racks ?? {}
 		return Object.keys(racks).map((r) => ({ id: parseInt(r, 10), label: `Rack ${r}` }))
 	}
 
@@ -383,7 +424,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async _executeRackSequence(rackId) {
-        const rack = JSON.parse(this.midiMap)?.racks?.[rackId]
+        const rack = this.midiMapObj?.racks?.[rackId]
         if (!rack) {
 			this._log('warn', 'rack not found', { rackId })
 			return
