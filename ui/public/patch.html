@@ -1,37 +1,36 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Patch Mappings</title>
-  <link rel="stylesheet" href="/patch/style.css" />
-</head>
-<body>
-  <div class="container">
-    <header>
-      <h1 style="margin:0;">Patch Mappings</h1>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div class="controls" style="display:flex; gap:8px;">
-          <button id="load-btn" title="Refresh Mapping" aria-label="Refresh Mapping">&#x21BB;</button>
-          <button id="clear-btn" title="Clear Mapping" aria-label="Clear Mapping">&#x2715;</button>
-          <!-- Verstecktes File-Input -->
-          <input id="import-input" type="file" accept="application/json" style="display:none" />
-          <!-- Konsistenter Button für Import -->
-          <button id="import-btn" title="Import Mapping" aria-label="Import Mapping">&#x2B07;</button>
-          <button id="export-btn" title="Export JSON" aria-label="Export JSON">&#x2B06;</button>
-        </div>
-        <span id="status" class="status disconnected">Disconnected</span>
-      </div>
-    </header>
-    <div id="alert-container"></div>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Patch Mappings</title>
+		<link rel="stylesheet" href="/patch/style.css" />
+	</head>
+	<body>
+		<div class="container">
+			<header>
+				<h1 style="margin: 0">Patch Mappings</h1>
+				<div style="display: flex; align-items: center; gap: 10px">
+					<div class="controls" style="display: flex; gap: 8px">
+						<button id="load-btn" title="Refresh Mapping" aria-label="Refresh Mapping">&#x21BB;</button>
+						<button id="clear-btn" title="Clear Mapping" aria-label="Clear Mapping">&#x2715;</button>
+						<!-- Verstecktes File-Input -->
+						<input id="import-input" type="file" accept="application/json" style="display: none" />
+						<!-- Konsistenter Button für Import -->
+						<button id="import-btn" title="Import Mapping" aria-label="Import Mapping">&#x2B07;</button>
+						<button id="export-btn" title="Export JSON" aria-label="Export JSON">&#x2B06;</button>
+					</div>
+					<span id="status" class="status disconnected">Disconnected</span>
+				</div>
+			</header>
+			<div id="alert-container"></div>
 
-    <!-- Parent-Container für das Patchfeld, sorgt für klare Struktur und gezieltes Styling -->
-    <section class="patch-grid-wrapper" aria-label="Patchfeld">
-      <div id="patch-matrix-container" role="grid" aria-colcount="" aria-rowcount=""></div>
-    </section>
-  </div>
+			<!-- Parent-Container für das Patchfeld, sorgt für klare Struktur und gezieltes Styling -->
+			<section class="patch-grid-wrapper" aria-label="Patchfeld">
+				<div id="patch-matrix-container" role="grid" aria-colcount="" aria-rowcount=""></div>
+			</section>
+		</div>
 
-  <script src="/patch/app.js"></script>
-</body>
+		<script src="/patch/app.js"></script>
+	</body>
 </html>
-

@@ -1,6 +1,3 @@
 module.exports = {
-    extraFiles: [
-        'superrack-midi-map.json',
-        'ui/public',
-    ],
+	extraFiles: ['superrack-midi-map.json', 'ui/public'],
 }

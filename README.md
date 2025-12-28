@@ -3,11 +3,13 @@
 This Companion v4 module routes WING sources to Waves SuperRack racks using predefined MIDI sequences. It does not open its own MIDI connection—instead, it exposes variables that you can trigger via a Generic-MIDI instance.
 
 ## Purpose
+
 - Execute rack sequences (CC/NoteOn/Program), trigger Hot Snapshots/Plugins
 - HTTP UI for mapping and patching
 - No internal MIDI connection: all MIDI is sent via variables to a Generic-MIDI instance
 
 ## Setup
+
 1. Add this module in Companion v4.
 2. Configure:
    - Log level
@@ -18,16 +20,19 @@ This Companion v4 module routes WING sources to Waves SuperRack racks using pred
 3. Add a Generic-MIDI instance and use its actions (e.g., send CC) with the variables from this module.
 
 ## Actions
+
 - **Route Rack**: Triggers the MIDI sequence for a specific rack.
 - **Route Hot Snapshot**: Triggers the MIDI sequence for a Hot Snapshot (IDs 1–6).
 - **Route Hot Plugin**: Triggers the MIDI sequence for a Hot Plugin (IDs 1–12).
 
 ## Feedbacks
+
 - **active_source**: True if the given source index is currently active.
 - **rack_last_used**: True if the given rack was last routed.
 - **sequence_running**: True while a routing sequence is running.
 
 ## Variables
+
 - `last_routed_racks`: JSON array of recently routed rack IDs
 - `last_action_timestamp`: Timestamp (ms) of the last routing action
 - `failed_steps_total`: Total number of failed MIDI steps
@@ -39,7 +44,9 @@ This Companion v4 module routes WING sources to Waves SuperRack racks using pred
 - `active_source_label`: Currently active source label (if used)
 
 ## Example: Using with Generic-MIDI
+
 Set up a trigger in Companion:
+
 - When `$(superrack-router:last_action_timestamp)` changes,
 - Send a MIDI CC message with:
   - Channel: `$(superrack-router:midi_last_channel)`
@@ -48,42 +55,58 @@ Set up a trigger in Companion:
 - Make sure "Use Variables" is enabled in the Generic-MIDI action.
 
 ## Hot Snapshots & Hot Plugins
+
 - Hot Snapshots (IDs 1–6) and Hot Plugins (IDs 1–12) must be defined in your MIDI Map JSON as collections or arrays.
 - If a sequence is missing, the action will log a warning and do nothing (no error thrown).
 
 ## HTTP UI
+
 - The UI is served from `/patch` on the configured port.
 - Endpoints: `/`, `/patch`, `/patch/`, `/health`, `/patch/mappings`, `/patch/update`, `/rack/:id`
 - Example: `http://localhost:12345/patch`
 
 ## MIDI Map JSON Structure
+
 - Example:
+
 ```json
 {
-  "racks": {
-    "1": { "name": "Rack 1", "enabled": true, "midiSteps": [ { "type": "cc", "channel": 1, "controller": 12, "value": 100, "delay": 0 } ] },
-    "2": { "name": "Rack 2", "enabled": true, "midiSteps": [ { "type": "noteon", "channel": 1, "note": 60, "value": 127, "delay": 1 } ] }
-  },
-  "hotSnapshots": {
-    "1": [ { "type": "program", "channel": 1, "program": 10, "delay": 0 } ]
-  },
-  "hotPlugins": {
-    "1": [ { "type": "cc", "channel": 2, "controller": 7, "value": 64, "delay": 0 } ]
-  }
+	"racks": {
+		"1": {
+			"name": "Rack 1",
+			"enabled": true,
+			"midiSteps": [{ "type": "cc", "channel": 1, "controller": 12, "value": 100, "delay": 0 }]
+		},
+		"2": {
+			"name": "Rack 2",
+			"enabled": true,
+			"midiSteps": [{ "type": "noteon", "channel": 1, "note": 60, "value": 127, "delay": 1 }]
+		}
+	},
+	"hotSnapshots": {
+		"1": [{ "type": "program", "channel": 1, "program": 10, "delay": 0 }]
+	},
+	"hotPlugins": {
+		"1": [{ "type": "cc", "channel": 2, "controller": 7, "value": 64, "delay": 0 }]
+	}
 }
 ```
+
 - Each step: `{ type: 'cc'|'noteon'|'program', channel: 1-16, delay: >=0, ... }`
 
 ## Maintainer Decisions & Runtime
+
 - Runtime: `node22`, `nodejs-ipc` (Companion v4 Node runtime, no own IPC needed)
 - No build artifacts or non-source UI in the repository
 - Only `ui/public` is the UI source directory
 
 ## Development
+
 - Node engine: >=18 <23
 - Dependencies: `@companion-module/base`, `fastify`, `@fastify/static`
 - Build: `yarn package` (or based on your environment). Prettier is configured.
 - Unit tests: Run with `npm test`
 
 ## License
+
 MIT
