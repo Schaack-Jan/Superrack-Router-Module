@@ -81,7 +81,7 @@ class ModuleInstance extends InstanceBase {
 				id: 'info_intro',
 				label: 'Info',
 				value:
-					'This module does not open its own MIDI connection. Additionally, create a Generic-MIDI instance and use actions there (CC) with the variables from the help. The built-in routepatch UI is served by this module on the configured HTTP port (default '+ (this._http?.port ?? '') +').',
+					'This module does not open its own MIDI connection. Additionally, create a Generic-MIDI instance and use actions there (CC) with the variables from the help. The built-in  <a href="http://127.0.0.1:'+ (this._http?.port ?? '') +'/patch" target="_blank" rel="noopener noreferrer">routepatch</a> UI is served by this module on the configured HTTP port (default '+ (this._http?.port ?? '') +').',
 			},
 			{
 				type: 'dropdown',
