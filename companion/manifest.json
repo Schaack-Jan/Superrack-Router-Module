@@ -8,7 +8,8 @@
 	"repository": "git+https://github.com/bitfocus/companion-module-waves-superrack-router.git",
 	"bugs": "https://github.com/bitfocus/companion-module-waves-superrack-router/issues",
 	"maintainers": [
-		{ "name": "Jan Schaack", "email": "janschaack.event@gmail.com" }
+		{ "name": "Jan Schaack", "email": "janschaack.event@gmail.com" },
+		{ "name": "Micha Gehringer", "email": "michagehringer@t-online.de" }
 	],
 	"runtime": {
 		"type": "node22",
