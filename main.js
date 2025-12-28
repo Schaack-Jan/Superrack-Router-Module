@@ -5,6 +5,7 @@ const UpdateFeedbacks = require('./feedbacks')
 const UpdateVariableDefinitions = require('./variables')
 const defaults = require('./default-variables')
 const { startHttpServer, stopHttpServer } = require('./ui/http')
+const { validateRackMidiMap, parseMidiMapString } = require('./lib/midi-map')
 
 class ModuleInstance extends InstanceBase {
     constructor(internal) {
@@ -234,193 +235,23 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async _loadAllJsonFromConfig() {
-        // Parse midiMap string once and store validated object
         const raw = typeof this.config?.midiMap === 'string' ? this.config.midiMap : (this.midiMap || '')
-        let parsed = { racks: {} }
-        if (raw && raw.trim()) {
-            try {
-                const j = JSON.parse(raw)
-                if (this._validateRackMidiMap(j)) {
-                    parsed = j
-                } else {
-                    this._log('warn', 'Invalid midiMap JSON structure, using empty racks')
-                }
-            } catch (e) {
-                this._log('warn', 'Failed to parse midiMap JSON, using empty racks', { error: e.message })
-            }
+        this.midiMapObj = parseMidiMapString(raw)
+        if (!validateRackMidiMap(this.midiMapObj)) {
+            this._log('warn', 'Invalid midiMap JSON structure, using empty racks')
+            this.midiMapObj = { racks: {} }
         }
-        this.midiMapObj = parsed
 	}
 
 	_parseJsonField(kind, validateFn, defaults) {
-		// Retained for backward compat; now only supports kind === 'midiMap'
 		if (kind !== 'midiMap') return
 		const raw = this?.midiMap || ''
-		let parsed = defaults
-		if (raw.trim()) {
-			try {
-				const j = JSON.parse(raw)
-				if (validateFn(j)) parsed = j
-			} catch {}
-		}
-        this.midiMapObj = parsed
+        const parsed = parseMidiMapString(raw)
+        this.midiMapObj = validateRackMidiMap(parsed) ? parsed : defaults
 	}
 
 	_validateRackMidiMap(obj) {
-		if (!obj || typeof obj !== 'object' || !obj.racks || typeof obj.racks !== 'object') return false
-		for (const [rackId, rack] of Object.entries(obj.racks)) {
-			if (!/^\d+$/.test(rackId)) return false
-			if (
-				!rack ||
-				typeof rack !== 'object' ||
-				typeof rack.name !== 'string' ||
-				typeof rack.enabled !== 'boolean' ||
-				!Array.isArray(rack.midiSteps)
-			)
-				return false
-			if (rack.midiSteps.length > 1000) return false
-			for (const step of rack.midiSteps) {
-				if (!['cc', 'noteon', 'program'].includes(step.type)) return false
-				if (typeof step.channel !== 'number' || step.channel < 1 || step.channel > 16) return false
-				if (typeof step.delay !== 'number' || step.delay < 0) return false
-				if (step.type === 'cc') {
-					if (typeof step.controller !== 'number' || step.controller < 0 || step.controller > 127) return false
-					if (typeof step.value !== 'number' || step.value < 0 || step.value > 127) return false
-				}
-				if (step.type === 'noteon') {
-					if (typeof step.note !== 'number' || step.note < 0 || step.note > 127) return false
-					if (typeof step.value !== 'number' || step.value < 0 || step.value > 127) return false
-				}
-				if (step.type === 'program') {
-					if (typeof step.program !== 'number' || step.program < 0 || step.program > 127) return false
-				}
-			}
-		}
-		return true
-	}
-
-	updateActions() {
-		UpdateActions(this)
-	}
-
-	updateFeedbacks() {
-		UpdateFeedbacks(this)
-	}
-
-	updateVariableDefinitions() {
-		UpdateVariableDefinitions(this)
-	}
-
-	_updateVariables() {
-		this.setVariableValues({
-			active_source_index: this.state.activeSourceIndex ?? '',
-			active_source_label: this.state.activeSourceLabel ?? '',
-			last_routed_racks: this.state.lastRoutedRacks.join(','),
-			last_action_timestamp: this.state.lastActionTimestamp,
-			failed_steps_total: this.state.failedStepsTotal,
-		})
-	}
-
-	_buildHotSnapshotChoices() {
-		const racks = this.midiMapObj?.racks ?? {}
-
-		let firstSteps = []
-		for (const rackId in racks) {
-			const steps = racks[rackId]?.midiSteps
-			if (Array.isArray(steps) && steps.length > 0) {
-				firstSteps.push({
-					...steps[0],
-				})
-			}
-		}
-
-		firstSteps = firstSteps.filter(
-			(step, index, self) =>
-				index === self.findIndex((s) => s.channel === step.channel && s.controller === step.controller),
-		)
-
-		return firstSteps.map(function (step, index) {
-			let label = 'Hot Snapshot - ' + (step.controller + 1)
-
-			return {
-				id: index,
-				label: label,
-				midi: step,
-			}
-		})
-	}
-
-	_buildHotPluginChoices() {
-		const racks = this.midiMapObj?.racks ?? {}
-
-		let firstSteps = []
-		for (const rackId in racks) {
-			const steps = racks[rackId]?.midiSteps
-			if (Array.isArray(steps) && steps.length > 1) {
-				firstSteps.push({
-					...steps[1],
-				})
-			}
-		}
-
-		firstSteps = firstSteps.filter(
-			(step, index, self) =>
-				index === self.findIndex((s) => s.channel === step.channel && s.controller === step.controller),
-		)
-
-		return firstSteps.map(function (step, index) {
-			let label = 'Hot Plugin - ' + (step.controller + 1)
-
-			return {
-				id: index,
-				label: label,
-				midi: step,
-			}
-		})
-	}
-
-	_buildRackChoices() {
-		const racks = this.midiMapObj?.racks ?? {}
-		return Object.keys(racks).map((r) => ({ id: parseInt(r, 10), label: `Rack ${r}` }))
-	}
-
-	async routeRack(rackId) {
-		if (rackId == null) {
-			this._log('warn', 'routeRack without rackid')
-			return
-		}
-		if (this.state.sequenceRunning) {
-			this._log('warn', 'sequence running – skipping rack', { rackId })
-			return
-		}
-		this.state.sequenceRunning = true
-		this.state.sequenceStartTs = Date.now()
-		this.state.lastRoutedRacks = [rackId]
-		await this._executeRackSequence(rackId)
-		this.state.sequenceRunning = false
-		this._log('info', 'routeRack completed', { rackId })
-	}
-
-	async routeSnapshot(snapshotId) {
-		const hotSnapshots = this._buildHotSnapshotChoices()
-		const snapshot = hotSnapshots.find((s) => s.id === snapshotId)
-		if (!snapshot) {
-			this._log('warn', 'hot snapshot not found', { snapshotId })
-			return
-		}
-		this._sendMidiStep(snapshot.midi)
-		this._log('info', 'execute hot snapshot', { snapshotId, midi: snapshot.midi })
-	}
-
-	async routePlugin(pluginId) {
-		const hotPlugins = this._buildHotPluginChoices()
-		const plugin = hotPlugins.find((s) => s.id === pluginId)
-		if (!plugin) {
-			this._log('warn', 'hot plugin not found', { pluginId })
-			return
-		}
-		this._sendMidiStep(plugin.midi)
-		this._log('info', 'execute hot plugin', { pluginId, midi: plugin.midi })
+        return validateRackMidiMap(obj)
 	}
 
 	async _executeRackSequence(rackId) {
