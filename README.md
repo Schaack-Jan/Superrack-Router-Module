@@ -2,46 +2,88 @@
 
 This Companion v4 module routes WING sources to Waves SuperRack racks using predefined MIDI sequences. It does not open its own MIDI connection—instead, it exposes variables that you can trigger via a Generic-MIDI instance.
 
-Overview
-- Purpose: Execute rack sequences (CC/NoteOn/Program), trigger Hot Snapshots/Plugins
-- UI: A simple patch UI is served via the configurable HTTP port
-- Tested with: Bitfocus Companion v4.x, Fastify v5, @fastify/static v8
+## Purpose
+- Execute rack sequences (CC/NoteOn/Program), trigger Hot Snapshots/Plugins
+- HTTP UI for mapping and patching
+- No internal MIDI connection: all MIDI is sent via variables to a Generic-MIDI instance
 
-Setup
-1. Start Companion and add this module.
-2. In the module settings:
-   - Choose log level.
-   - Set rack count (4/8/16/32/64).
-   - Set channel count (min 32, max 512).
-   - Configure the HTTP port (default from the module defaults).
-   - Paste the SuperRack MIDI Map (JSON) as a string. The module parses this once and uses `midiMapObj` internally.
-3. Additionally, add a Generic-MIDI instance and use its actions (e.g., send CC) with the variables provided by this module.
+## Setup
+1. Add this module in Companion v4.
+2. Configure:
+   - Log level
+   - Rack count (4/8/16/32/64)
+   - Channel count (min 32, max 512)
+   - HTTP port (for the UI)
+   - Paste your SuperRack MIDI Map (JSON)
+3. Add a Generic-MIDI instance and use its actions (e.g., send CC) with the variables from this module.
 
-Variables
-- `midi_last_type`, `midi_last_channel`, `midi_last_controller`, `midi_last_value`
-- `last_action_timestamp`
-- `active_source_index`, `active_source_label`
-- `last_routed_racks`
-- `failed_steps_total`
+## Actions
+- **Route Rack**: Triggers the MIDI sequence for a specific rack.
+- **Route Hot Snapshot**: Triggers the MIDI sequence for a Hot Snapshot (IDs 1–6).
+- **Route Hot Plugin**: Triggers the MIDI sequence for a Hot Plugin (IDs 1–12).
 
-Actions & Feedbacks
-- Actions: Route rack, trigger Hot Snapshot/Plugin.
-- Feedbacks: Status/color feedback based on sequence status.
+## Feedbacks
+- **active_source**: True if the given source index is currently active.
+- **rack_last_used**: True if the given rack was last routed.
+- **sequence_running**: True while a routing sequence is running.
 
-HTTP Routepatch UI
+## Variables
+- `last_routed_racks`: JSON array of recently routed rack IDs
+- `last_action_timestamp`: Timestamp (ms) of the last routing action
+- `failed_steps_total`: Total number of failed MIDI steps
+- `midi_last_type`: Last MIDI type (cc, noteon, program)
+- `midi_last_channel`: Last MIDI channel
+- `midi_last_controller`: Last MIDI controller/note/program
+- `midi_last_value`: Last MIDI value
+- `active_source_index`: Currently active source index (if used)
+- `active_source_label`: Currently active source label (if used)
+
+## Example: Using with Generic-MIDI
+Set up a trigger in Companion:
+- When `$(superrack-router:last_action_timestamp)` changes,
+- Send a MIDI CC message with:
+  - Channel: `$(superrack-router:midi_last_channel)`
+  - Controller: `$(superrack-router:midi_last_controller)`
+  - Value: `$(superrack-router:midi_last_value)`
+- Make sure "Use Variables" is enabled in the Generic-MIDI action.
+
+## Hot Snapshots & Hot Plugins
+- Hot Snapshots (IDs 1–6) and Hot Plugins (IDs 1–12) must be defined in your MIDI Map JSON as collections or arrays.
+- If a sequence is missing, the action will log a warning and do nothing (no error thrown).
+
+## HTTP UI
+- The UI is served from `/patch` on the configured port.
 - Endpoints: `/`, `/patch`, `/patch/`, `/health`, `/patch/mappings`, `/patch/update`, `/rack/:id`
-- The port is configurable; for example, open `http://<your-host>:<port>/patch`.
+- Example: `http://localhost:12345/patch`
 
-Notes on the MIDI Map JSON
-- Expected structure: `{ racks: { "1": { name: string, enabled: boolean, midiSteps: Step[] }, ... } }`
-- Step: `{ type: 'cc'|'noteon'|'program', channel: 1-16, delay: >=0, ... }`
-- Validation is performed when loading. On errors, a warning is logged and the module falls back to `{ racks: {} }`.
+## MIDI Map JSON Structure
+- Example:
+```json
+{
+  "racks": {
+    "1": { "name": "Rack 1", "enabled": true, "midiSteps": [ { "type": "cc", "channel": 1, "controller": 12, "value": 100, "delay": 0 } ] },
+    "2": { "name": "Rack 2", "enabled": true, "midiSteps": [ { "type": "noteon", "channel": 1, "note": 60, "value": 127, "delay": 1 } ] }
+  },
+  "hotSnapshots": {
+    "1": [ { "type": "program", "channel": 1, "program": 10, "delay": 0 } ]
+  },
+  "hotPlugins": {
+    "1": [ { "type": "cc", "channel": 2, "controller": 7, "value": 64, "delay": 0 } ]
+  }
+}
+```
+- Each step: `{ type: 'cc'|'noteon'|'program', channel: 1-16, delay: >=0, ... }`
 
-Development
+## Maintainer Decisions & Runtime
+- Runtime: `node22`, `nodejs-ipc` (Companion v4 Node runtime, no own IPC needed)
+- No build artifacts or non-source UI in the repository
+- Only `ui/public` is the UI source directory
+
+## Development
 - Node engine: >=18 <23
 - Dependencies: `@companion-module/base`, `fastify`, `@fastify/static`
 - Build: `yarn package` (or based on your environment). Prettier is configured.
-- Minimal unit tests for `_validateRackMidiMap` and `_loadAllJsonFromConfig` can be added if a test framework is available.
+- Unit tests: Run with `npm test`
 
-License
-- MIT
+## License
+MIT
