@@ -1,45 +1,47 @@
-# Companion Module – Waves SuperRack Router
+# Waves SuperRack Router Companion Module
 
-This Companion module allows routing of mixer sources to Waves SuperRack racks and triggers rack-specific MIDI sequences. It is designed for use with the Bitfocus Companion platform.
+This Companion v4 module routes WING sources to Waves SuperRack racks using predefined MIDI sequences. It does not open its own MIDI connection—instead, it exposes variables that you can trigger via a Generic-MIDI instance.
 
-## Features
+Overview
+- Purpose: Execute rack sequences (CC/NoteOn/Program), trigger Hot Snapshots/Plugins
+- UI: A simple patch UI is served via the configurable HTTP port
+- Tested with: Bitfocus Companion v4.x, Fastify v5, @fastify/static v8
 
-- **Source-to-Rack Mapping:** Map mixer source indices to one or more SuperRack rack IDs using JSON configuration.
-- **MIDI Control:** Send customizable MIDI sequences (CC, Note On, Program Change) per rack, with optional delays.
-- **Actions:** Route a source, reload JSON configuration, set empty routing.
-- **Feedbacks:** Indicate the currently active source and the last used rack.
-- **Variables:** Expose variables such as `active_source_index`, `active_source_label`, `last_routed_racks`, `last_action_timestamp`, and `failed_steps_total` for use in Companion.
-- **Presets:** Automatically generated buttons for each source, reload, and empty routing.
-- **JSON Edit UI:** Edit mapping files directly in the Companion UI with autosave and error revert.
-- **Debug Logging:** Output detailed logs, including raw MIDI bytes, for troubleshooting.
+Setup
+1. Start Companion and add this module.
+2. In the module settings:
+   - Choose log level.
+   - Set rack count (4/8/16/32/64).
+   - Set channel count (min 32, max 512).
+   - Configure the HTTP port (default from the module defaults).
+   - Paste the SuperRack MIDI Map (JSON) as a string. The module parses this once and uses `midiMapObj` internally.
+3. Additionally, add a Generic-MIDI instance and use its actions (e.g., send CC) with the variables provided by this module.
 
-## Configuration Files
+Variables
+- `midi_last_type`, `midi_last_channel`, `midi_last_controller`, `midi_last_value`
+- `last_action_timestamp`
+- `active_source_index`, `active_source_label`
+- `last_routed_racks`
+- `failed_steps_total`
 
-- `superrack-midi-map.json`: Defines MIDI messages for each rack.
+Actions & Feedbacks
+- Actions: Route rack, trigger Hot Snapshot/Plugin.
+- Feedbacks: Status/color feedback based on sequence status.
 
-## File Overview
+HTTP Routepatch UI
+- Endpoints: `/`, `/patch`, `/patch/`, `/health`, `/patch/mappings`, `/patch/update`, `/rack/:id`
+- The port is configurable; for example, open `http://<your-host>:<port>/patch`.
 
-- `actions.js`: Implements Companion actions.
-- `feedbacks.js`: Implements Companion feedbacks.
-- `main.js`: Module initialization, configuration loading, and core logic.
-- `variables.js`: Defines and updates module variables.
-- `upgrades.js`: Handles configuration migrations.
-- `companion/HELP.md`: Additional help for Companion users.
-- `companion/manifest.json`: Module metadata for Companion.
+Notes on the MIDI Map JSON
+- Expected structure: `{ racks: { "1": { name: string, enabled: boolean, midiSteps: Step[] }, ... } }`
+- Step: `{ type: 'cc'|'noteon'|'program', channel: 1-16, delay: >=0, ... }`
+- Validation is performed when loading. On errors, a warning is logged and the module falls back to `{ racks: {} }`.
 
-## Usage
+Development
+- Node engine: >=18 <23
+- Dependencies: `@companion-module/base`, `fastify`, `@fastify/static`
+- Build: `yarn package` (or based on your environment). Prettier is configured.
+- Minimal unit tests for `_validateRackMidiMap` and `_loadAllJsonFromConfig` can be added if a test framework is available.
 
-1. **Install the module** in Bitfocus Companion.
-2. **Configure mappings** in `superrack-midi-map.json` via the Companion UI.
-3. **Assign actions and feedbacks** to buttons as needed.
-4. **Monitor variables and feedbacks** for real-time status.
-
-## Development
-
-- Node.js based, uses standard Companion module structure.
-- Edit JSON files for custom mappings.
-- Debug output available in the Companion log.
-
-## License
-
-See `LICENSE` for details.
+License
+- MIT
