@@ -5,8 +5,8 @@
 	"description": "Route mixer channels to SuperRack racks via MIDI sequences",
 	"version": "0.2.3",
 	"license": "MIT",
-	"repository": "git+https://github.com/bitfocus/companion-module-waves-superrack-router.git",
-	"bugs": "https://github.com/bitfocus/companion-module-waves-superrack-router/issues",
+	"repository": "git+https://github.com/Schaack-Jan/companion-module-waves-superrack-router.git",
+	"bugs": "https://github.com/Schaack-Jan/companion-module-waves-superrack-router/issues",
 	"maintainers": [
 		{ "name": "Jan Schaack", "email": "janschaack.event@gmail.com" },
 		{ "name": "Micha Gehringer", "email": "michagehringer@t-online.de" }
