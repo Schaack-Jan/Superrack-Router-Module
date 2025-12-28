@@ -28,8 +28,8 @@ const _startHttpServer = async function (instance) {
     fastify.get('/health', async (req, reply) => {
         return {
             status: 'ok',
-            sequenceRunning: instance.sequenceRunning,
-            activeSourceIndex: instance.activeSourceIndex,
+            sequenceRunning: !!instance.state?.sequenceRunning,
+            activeSourceIndex: instance.state?.activeSourceIndex ?? null,
         }
     })
 
