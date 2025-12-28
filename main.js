@@ -5,7 +5,7 @@ const UpdateFeedbacks = require('./feedbacks')
 const UpdateVariableDefinitions = require('./variables')
 const defaults = require('./default-variables')
 const { startHttpServer, stopHttpServer } = require('./ui/http')
-const { validateRackMidiMap, parseMidiMapString } = require('./lib/midi-map')
+const { validateRackMidiMap, parseMidiMapString, applyMidiStepToVariables } = require('./lib/midi-map')
 
 class ModuleInstance extends InstanceBase {
     constructor(internal) {
@@ -284,35 +284,138 @@ class ModuleInstance extends InstanceBase {
         return validateRackMidiMap(obj)
 	}
 
-	async _executeRackSequence(rackId) {
+	// --- Routing Actions ---
+	async routeRack(rackId) {
+        this.state.sequenceRunning = true
+        this.state.sequenceStartTs = Date.now()
+        try {
+            await this._executeRackSequence(rackId)
+            this.state.lastRoutedRacks = [rackId, ...(this.state.lastRoutedRacks || []).filter((id) => id !== rackId)].slice(0, 8)
+            this.state.lastActionTimestamp = Date.now()
+        } finally {
+            this.state.sequenceRunning = false
+            this._updateVariables()
+        }
+    }
+
+    async routeSnapshot(snapshotId) {
+        // Hot Snapshots: IDs 1-6
+        const seq = this.midiMapObj?.hotSnapshots?.[snapshotId]
+        if (!seq) {
+            this._log('warn', `No sequence for Hot Snapshot ${snapshotId}`)
+            return
+        }
+        this.state.sequenceRunning = true
+        this.state.sequenceStartTs = Date.now()
+        try {
+            for (const step of seq) {
+                if (Date.now() - this.state.sequenceStartTs > this.state.sequenceTimeoutMs) {
+                    this._log('error', 'timeout during hot snapshot sequence', { snapshotId })
+                    this.state.failedStepsTotal++
+                    break
+                }
+                try {
+                    applyMidiStepToVariables(this, step)
+                } catch (e) {
+                    this._log('error', 'midi step error', { snapshotId, error: e.message })
+                    this.state.failedStepsTotal++
+                }
+                if (step.delay > 0) await new Promise((res) => setTimeout(res, step.delay))
+            }
+            this.state.lastActionTimestamp = Date.now()
+        } finally {
+            this.state.sequenceRunning = false
+            this._updateVariables()
+        }
+    }
+
+    async routePlugin(pluginId) {
+        // Hot Plugins: IDs 1-12
+        const seq = this.midiMapObj?.hotPlugins?.[pluginId]
+        if (!seq) {
+            this._log('warn', `No sequence for Hot Plugin ${pluginId}`)
+            return
+        }
+        this.state.sequenceRunning = true
+        this.state.sequenceStartTs = Date.now()
+        try {
+            for (const step of seq) {
+                if (Date.now() - this.state.sequenceStartTs > this.state.sequenceTimeoutMs) {
+                    this._log('error', 'timeout during hot plugin sequence', { pluginId })
+                    this.state.failedStepsTotal++
+                    break
+                }
+                try {
+                    applyMidiStepToVariables(this, step)
+                } catch (e) {
+                    this._log('error', 'midi step error', { pluginId, error: e.message })
+                    this.state.failedStepsTotal++
+                }
+                if (step.delay > 0) await new Promise((res) => setTimeout(res, step.delay))
+            }
+            this.state.lastActionTimestamp = Date.now()
+        } finally {
+            this.state.sequenceRunning = false
+            this._updateVariables()
+        }
+    }
+
+    _updateVariables() {
+        this.setVariableValues({
+            last_routed_racks: JSON.stringify(this.state.lastRoutedRacks || []),
+            failed_steps_total: this.state.failedStepsTotal,
+            last_action_timestamp: this.state.lastActionTimestamp,
+            active_source_index: this.state.activeSourceIndex,
+            active_source_label: this.state.activeSourceLabel,
+        })
+    }
+
+    _buildRackChoices() {
+        const racks = this.midiMapObj?.racks || {}
+        return Object.entries(racks).map(([id, rack]) => ({ id, label: `${id} – ${rack.name}` }))
+    }
+
+    _buildHotSnapshotChoices() {
+        // IDs 1–6
+        return Array.from({ length: 6 }, (_, i) => ({ id: String(i + 1), label: `Hot Snapshot ${i + 1}` }))
+    }
+
+    _buildHotPluginChoices() {
+        // IDs 1–12
+        return Array.from({ length: 12 }, (_, i) => ({ id: String(i + 1), label: `Hot Plugin ${i + 1}` }))
+    }
+
+    async _executeRackSequence(rackId) {
         const rack = this.midiMapObj?.racks?.[rackId]
         if (!rack) {
-			this._log('warn', 'rack not found', { rackId })
-			return
-		}
-		if (!rack.enabled) {
-			this._log('debug', 'rack disabled', { rackId })
-			return
-		}
-		this._log('info', 'rack sequence started', { rackId, steps: rack.midiSteps.length })
-		for (const step of rack.midiSteps) {
-			if (Date.now() - this.state.sequenceStartTs > this.state.sequenceTimeoutMs) {
-				this._log('error', 'timeout during rack sequence', { rackId })
-				this.state.failedStepsTotal++
-				this._updateVariables()
-				return
-			}
-			try {
-				this._sendMidiStep(step)
-			} catch (e) {
-				this._log('error', 'midi step error', { rackId, error: e.message })
-				this.state.failedStepsTotal++
-				this._updateVariables()
-			}
-			if (step.delay > 0) await new Promise((res) => setTimeout(res, step.delay))
-		}
-		this._log('info', 'ended rack sequence', { rackId })
-	}
+            this._log('warn', 'rack not found', { rackId })
+            return
+        }
+        if (!rack.enabled) {
+            this._log('debug', 'rack disabled', { rackId })
+            return
+        }
+        this._log('info', 'rack sequence started', { rackId, steps: rack.midiSteps.length })
+        this.state.sequenceStartTs = Date.now()
+        for (const step of rack.midiSteps) {
+            if (Date.now() - this.state.sequenceStartTs > this.state.sequenceTimeoutMs) {
+                this._log('error', 'timeout during rack sequence', { rackId })
+                this.state.failedStepsTotal++
+                this._updateVariables()
+                return
+            }
+            try {
+                applyMidiStepToVariables(this, step)
+            } catch (e) {
+                this._log('error', 'midi step error', { rackId, error: e.message })
+                this.state.failedStepsTotal++
+                this._updateVariables()
+            }
+            if (step.delay > 0) await new Promise((res) => setTimeout(res, step.delay))
+        }
+        this._log('info', 'ended rack sequence', { rackId })
+        this._updateVariables()
+    }
 }
 
 try {
