@@ -2,12 +2,14 @@
 	"id": "waves-superrack-router",
 	"name": "Waves SuperRack Router",
 	"shortname": "superrack-router",
-	"description": "Route WING Quellen zu SuperRack Racks via MIDI Sequenzen",
-	"version": "0.1.1",
+	"description": "Route mixer channels to SuperRack racks via MIDI sequences",
+	"version": "0.2.3",
 	"license": "MIT",
 	"repository": "git+https://github.com/bitfocus/companion-module-waves-superrack-router.git",
 	"bugs": "https://github.com/bitfocus/companion-module-waves-superrack-router/issues",
-	"maintainers": [{ "name": "Maintainer", "email": "maintainer@example.com" }],
+	"maintainers": [
+		{ "name": "Jan Schaack", "email": "janschaack.event@gmail.com" }
+	],
 	"runtime": {
 		"type": "node22",
 		"api": "nodejs-ipc",
