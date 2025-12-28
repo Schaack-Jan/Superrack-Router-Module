@@ -12,8 +12,7 @@
 		"url": "git+https://github.com/Schaack-Jan/companion-module-waves-superrack-router.git"
 	},
 	"engines": {
-		"node": "^22.20",
-		"yarn": "^4"
+		"node": ">=18 <23"
 	},
 	"dependencies": {
 		"@companion-module/base": "~1.12.1",
