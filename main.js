@@ -191,6 +191,36 @@ class ModuleInstance extends InstanceBase {
         }
 	}
 
+	updateActions() {
+		try {
+			if (typeof UpdateActions === 'function') {
+				UpdateActions(this)
+			}
+		} catch (e) {
+			this._log('error', 'updateActions failed', { error: e?.message })
+		}
+	}
+
+	updateFeedbacks() {
+		try {
+			if (typeof UpdateFeedbacks === 'function') {
+				UpdateFeedbacks(this)
+			}
+		} catch (e) {
+			this._log('error', 'updateFeedbacks failed', { error: e?.message })
+		}
+	}
+
+	updateVariableDefinitions() {
+		try {
+			if (typeof UpdateVariableDefinitions === 'function') {
+				UpdateVariableDefinitions(this)
+			}
+		} catch (e) {
+			this._log('error', 'updateVariableDefinitions failed', { error: e?.message })
+		}
+	}
+
 	_sendMidiStep(step) {
 		// Statt direkt zu senden: Variablen setzen, von Generic-MIDI aus nutzbar
 		const ch = step.channel
