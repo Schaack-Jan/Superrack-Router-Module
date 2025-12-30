@@ -22,6 +22,7 @@ class ModuleInstance extends InstanceBase {
 		}
 		this.rackCount = defaults.rackCount
 		this.channelCount = defaults.channelCount
+		this.hotMap = defaults.hotMap
 		this.midiMap = defaults.midi
 		this.midiMapObj = { racks: {} }
 		this.emptyMapping = defaults.mapping(this.rackCount)
