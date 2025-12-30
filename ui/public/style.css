@@ -59,6 +59,48 @@ button:hover {
 #import-input {
 	display: none;
 }
+.midi-settings-bar {
+	display: flex;
+	gap: 24px;
+	align-items: center;
+	margin-bottom: 24px;
+	background-color: #252526;
+	border-radius: 12px;
+	padding: 20px 28px;
+	box-shadow: 0 2px 12px 0 rgba(0,0,0,0.06);
+}
+
+.midi-settings-bar label {
+	font-weight: 500;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	font-size: 1rem;
+}
+
+.midi-settings-bar select,
+.midi-settings-bar input[type="number"] {
+	padding: 8px 12px;
+	border-radius: 8px;
+	border: 1px solid #cbd5e1;
+	background: #fff;
+	font-size: 1rem;
+	transition: border 0.2s;
+}
+
+.midi-settings-bar select:focus,
+.midi-settings-bar input[type="number"]:focus {
+	border: 1.5px solid #6366f1;
+	outline: none;
+}
+
+@media (max-width: 600px) {
+	.midi-settings-bar {
+		flex-direction: column;
+		gap: 12px;
+		padding: 14px 8px;
+	}
+}
 #patch-matrix-container {
 	background-color: #252526;
 	border-radius: 8px; /* overflow: auto; */
