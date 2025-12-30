@@ -18,15 +18,17 @@ const _startHttpServer = async function (instance) {
 		prefix: '/patch/',
 	})
 
-	// Root of the Patch-UI
+	fastify.get('/test', async (req, reply) => {
+		return reply.sendFile('./public/home.html')
+	})
 	fastify.get('/', async (req, reply) => {
-		return reply.redirect('patch', 301)
+		return reply.sendFile('./public/home.html')
 	})
 	fastify.get('/patch', async (req, reply) => {
-		return reply.sendFile('./public/patch-rack-channel.html')
+		return reply.sendFile('./public/rack-channel.html')
 	})
 	fastify.get('/patch/', async (req, reply) => {
-		return reply.sendFile('./public/patch-rack-channel.html')
+		return reply.sendFile('./public/rack-channel.html')
 	})
 
 	fastify.get('/health', async (req, reply) => {

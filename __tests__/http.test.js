@@ -28,8 +28,8 @@ function buildServer(instance) {
 		prefix: '/patch/',
 	})
 	fastify.get('/', async (req, reply) => reply.redirect('patch', 301))
-	fastify.get('/patch', async (req, reply) => reply.sendFile('./public/patch-rack-channel.html'))
-	fastify.get('/patch/', async (req, reply) => reply.sendFile('./public/patch-rack-channel.html'))
+	fastify.get('/patch', async (req, reply) => reply.sendFile('./public/rack-channel.html'))
+	fastify.get('/patch/', async (req, reply) => reply.sendFile('./public/rack-channel.html'))
 	fastify.get('/health', async () => ({
 		status: 'ok',
 		sequenceRunning: !!instance.state?.sequenceRunning,
