@@ -26,6 +26,7 @@ class ModuleInstance extends InstanceBase {
 		this.midiMapObj = { racks: {} }
 		this.emptyMapping = defaults.mapping(this.rackCount)
 		this.rackMap = this.emptyMapping
+		this.hotPlugin = defaults.hotPlugin
 
 		this.logLevel = defaults.logLevel ?? 'error'
 		this._http = defaults.httpSettings
@@ -206,6 +207,10 @@ class ModuleInstance extends InstanceBase {
 		// rackMap stays as-is from defaults when present
 		if (this.config?.rackMap && this.config.rackMap !== {}) {
 			this.rackMap = this.config.rackMap
+		}
+
+		if (this.config?.hotPlugin && this.config.hotPlugin !== {}) {
+			this.hotPlugin = this.config.hotPlugin
 		}
 
 		if (!preventConfigReupdate && changed) {

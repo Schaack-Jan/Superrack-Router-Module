@@ -1,6 +1,6 @@
 const superrackMidiMap = JSON.stringify(require('./superrack-midi-map.json'))
 
-const getEmptyRackTemplate = (rackCount) => {
+const getEmptyTemplate = (rackCount) => {
 	let racks = []
 	for (let rack = 1; rack <= rackCount; rack++) {
 		racks[rack] = {
@@ -17,5 +17,6 @@ module.exports = {
 	midi: superrackMidiMap,
 	httpSettings: { server: null, port: 8010, started: false },
 	logLevel: 'error',
-	mapping: getEmptyRackTemplate,
+	hotPlugin: { type: 'cc', channel: 1, mapping: getEmptyTemplate(12), emptyMapping: getEmptyTemplate(12) },
+	mapping: getEmptyTemplate,
 }

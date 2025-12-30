@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>MIDI Plugin Mapping</title>
+        <link rel="stylesheet" href="/patch/style.css" />
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>MIDI Plugin Mapping</h1>
+                <div class="header-bar">
+                    <div class="controls">
+                        <button id="load-btn" title="Refresh Mapping" aria-label="Refresh Mapping">&#x21BB;</button>
+                        <button id="clear-btn" title="Clear Mapping" aria-label="Clear Mapping">&#x2715;</button>
+                        <input id="import-input" type="file" accept="application/json" />
+                        <button id="import-btn" title="Import Mapping" aria-label="Import Mapping">&#x2B06;</button>
+                        <button id="export-btn" title="Export JSON" aria-label="Export JSON">&#x2B07;</button>
+                    </div>
+                    <span id="status" class="status disconnected">Disconnected</span>
+                </div>
+            </header>
+            <div id="alert-container"></div>
+
+            <div class="midi-settings-bar">
+                <label>
+                    MIDI Event Type:
+                    <select id="midi-type">
+                        <option style="display: none">no selection</option>
+                        <option value="cc">CC</option>
+                        <option value="noteon">Note On</option>
+                        <option value="program">Program Change</option>
+                    </select>
+                </label>
+                <label>
+                    MIDI Channel:
+                    <input id="midi-channel" type="number" min="1" max="16">
+                </label>
+            </div>
+
+            <section class="patch-grid-wrapper" aria-label="Patchfeld">
+                <div id="midi-plugin-matrix-container" role="grid" aria-colcount="" aria-rowcount=""></div>
+            </section>
+        </div>
+
+        <script type="text/javascript">
+            const UPDATE_URL = '/midi/plugin/update'
+            const MAPPING_URL = '/midi/plugin/mapping'
+            const EXPORT_NAME = 'patch-rack'
+
+            const PATCH_CONTAINER = document.getElementById('midi-plugin-matrix-container')
+
+            function initPatchMatrix() {
+                fetch(MAPPING_URL).then((res) => startupPatchMatrix(res, 'Hot Plugin'))
+
+                checkHealth()
+            }
+        </script>
+        <script src="/patch/app.js" type="text/javascript"></script>
+        <script src="/patch/midi.js" type="text/javascript"></script>
+    </body>
+</html>
