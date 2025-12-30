@@ -10,6 +10,7 @@ let xToY = [] // maps x -> y id or null                   : VORHER : channelToRa
 
 const statusEl = document.getElementById('status')
 
+const homeBtn = document.getElementById('home-btn')
 const loadBtn = document.getElementById('load-btn')
 const clearBtn = document.getElementById('clear-btn')
 const exportBtn = document.getElementById('export-btn')
@@ -416,6 +417,7 @@ const sendMatrixToServer = async () => {
 
 // Attach UI event listeners if elements exist
 if (typeof window !== 'undefined') {
+    if (homeBtn) homeBtn.addEventListener('click', () => window.location.href = '/')
     if (loadBtn) loadBtn.addEventListener('click', loadFromCompanion)
     if (clearBtn) {
         clearBtn.addEventListener('click', async () => {

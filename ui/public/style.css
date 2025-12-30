@@ -207,6 +207,21 @@ button:hover {
 	position: absolute;
 }
 
+.grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 24px;
+}
+.grid-item {
+	background: #333;
+	border-radius: 12px;
+	margin-top: 20px;
+	padding: 24px;
+	text-align: center;
+	color: #fff !important;
+	text-decoration: none !important;
+}
+
 @keyframes spin {
 	from {
 		transform: rotate(0deg);
