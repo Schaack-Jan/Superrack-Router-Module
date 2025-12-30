@@ -16,6 +16,14 @@ header {
 	margin: 10px 0;
 	gap: 12px;
 }
+header h1 {
+	margin: 0;
+}
+.header-bar {
+	gap: 10px;
+	display: flex;
+	align-items: center;
+}
 .status {
 	padding: 5px 10px;
 	border-radius: 4px;
@@ -34,7 +42,7 @@ header {
 	padding: 8px;
 	border-radius: 8px;
 	display: flex;
-	gap: 10px;
+	gap: 8px;
 	align-items: center;
 }
 button {
@@ -47,6 +55,9 @@ button {
 }
 button:hover {
 	background-color: #005999;
+}
+#import-input {
+	display: none;
 }
 #patch-matrix-container {
 	background-color: #252526;
