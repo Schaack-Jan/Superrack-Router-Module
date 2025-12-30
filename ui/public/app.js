@@ -66,7 +66,7 @@ function importMappings(file) {
             } else {
                 MAPPING = []
             }
-            xToY = new Array(NUM_Y + 1).fill(null)
+            xToY = new Array(NUM_X + 1).fill(null)
 
             const assignAndMark = (r, ch) => {
                 if (!MAPPING[r]) MAPPING[r] = { id: r, value: null }
@@ -94,9 +94,9 @@ function importMappings(file) {
                         Number.isInteger(r) &&
                         Number.isInteger(ch) &&
                         r >= 1 &&
-                        r <= NUM_X &&
+                        r <= NUM_Y &&
                         ch >= 1 &&
-                        ch <= NUM_Y
+                        ch <= NUM_X
                     ) {
                         assignAndMark(r, ch)
                     }
@@ -110,9 +110,9 @@ function importMappings(file) {
                         Number.isInteger(r) &&
                         Number.isInteger(ch) &&
                         r >= 1 &&
-                        r <= NUM_X &&
+                        r <= NUM_Y &&
                         ch >= 1 &&
-                        ch <= NUM_Y
+                        ch <= NUM_X
                     ) {
                         assignAndMark(r, ch)
                     }
@@ -133,7 +133,7 @@ function importMappings(file) {
             showAlert('Mapping imported successfully.')
         } catch (err) {
             // remove pending marks efficiently
-            for (let r = 1; r <= NUM_X; r++) {
+            for (let r = 1; r <= NUM_Y; r++) {
                 const rc = yCells[r] || []
                 for (const c of rc) c.classList.remove('pending')
             }
@@ -316,37 +316,39 @@ const startupPatchMatrix = async (res, yLabel) => {
 
     // Initialize mappings robustly
     const incoming = Array.isArray(data?.mapping) ? data.mapping : []
-    if (NUM_X <= 0 || NUM_Y <= 0) {
+    if (NUM_Y <= 0 || NUM_X <= 0) {
         // try to infer from incoming mapping
         for (const m of incoming) {
             if (!m) continue
             NUM_X = Math.max(NUM_X, Number(m.id) || 0)
             NUM_Y = Math.max(NUM_Y, Number(m.value) || 0)
+            NUM_Y = Math.max(NUM_Y, Number(m.id) || 0)
+            NUM_X = Math.max(NUM_X, Number(m.value) || 0)
         }
     }
-    if (NUM_X <= 0 || NUM_Y <= 0) {
+    if (NUM_Y <= 0 || NUM_X <= 0) {
         console.warn('No x/y meta available; cannot build matrix')
         PATCH_CONTAINER.innerHTML = '<div style="padding:8px">Keine Metadaten für X/Y gefunden.</div>'
         return
     }
 
-    // Build MAPPING array of length NUM_X+1
-    MAPPING = new Array(NUM_X + 1)
-    for (let yCell = 1; yCell <= NUM_X; yCell++) {
+    // Build MAPPING array of length NUM_Y+1
+    MAPPING = new Array(NUM_Y + 1)
+    for (let yCell = 1; yCell <= NUM_Y; yCell++) {
         MAPPING[yCell] = { id: yCell, value: null }
     }
     for (const m of incoming) {
         if (!m) continue
         const r = Number(m.id)
         const v = Number(m.value)
-        if (r >= 1 && r <= NUM_X && v >= 1 && v <= NUM_Y) {
+        if (r >= 1 && r <= NUM_Y && v >= 1 && v <= NUM_X) {
             MAPPING[r].value = v
         }
     }
 
     // Build quick lookup for x -> y
-    xToY = new Array(NUM_Y + 1).fill(null)
-    for (let r = 1; r <= NUM_X; r++) {
+    xToY = new Array(NUM_X + 1).fill(null)
+    for (let r = 1; r <= NUM_Y; r++) {
         const v = MAPPING[r].value
         if (v != null) xToY[v] = r
     }
@@ -355,32 +357,32 @@ const startupPatchMatrix = async (res, yLabel) => {
     PATCH_CONTAINER.innerHTML = ''
     const table = document.createElement('div')
     table.className = 'patch-table'
-    table.style.gridTemplateColumns = `100px repeat(${NUM_Y}, 30px)`
+    table.style.gridTemplateColumns = `100px repeat(${NUM_X}, 30px)`
 
     const emptyHeader = document.createElement('div')
     emptyHeader.className = 'patch-header-cell corner-cell'
     table.appendChild(emptyHeader)
 
-    for (let xCell = 1; xCell <= NUM_Y; xCell++) {
+    for (let xCell = 1; xCell <= NUM_X; xCell++) {
         const header = document.createElement('div')
         header.className = 'patch-header-cell'
         header.innerText = `${xCell}`
         table.appendChild(header)
     }
 
-    cellRefs = new Array(NUM_X + 1)
-    yCells = new Array(NUM_X + 1)
+    cellRefs = new Array(NUM_Y + 1)
+    yCells = new Array(NUM_Y + 1)
 
-    for (let y = 1; y <= NUM_X; y++) {
+    for (let y = 1; y <= NUM_Y; y++) {
         const label = document.createElement('div')
         label.className = 'patch-y-label'
         label.innerText = `${yLabel} ${y}`
         table.appendChild(label)
 
-        cellRefs[y] = new Array(NUM_Y + 1)
+        cellRefs[y] = new Array(NUM_X + 1)
         yCells[y] = []
 
-        for (let x = 1; x <= NUM_Y; x++) {
+        for (let x = 1; x <= NUM_X; x++) {
             const cell = document.createElement('div')
             cell.className = 'patch-cell'
             cell.setAttribute('data-y', `${y}`)
