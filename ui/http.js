@@ -23,10 +23,10 @@ const _startHttpServer = async function (instance) {
 		return reply.redirect('patch', 301)
 	})
 	fastify.get('/patch', async (req, reply) => {
-		return reply.sendFile('./public/patch.html')
+		return reply.sendFile('./public/patch-rack-channel.html')
 	})
 	fastify.get('/patch/', async (req, reply) => {
-		return reply.sendFile('./public/patch.html')
+		return reply.sendFile('./public/patch-rack-channel.html')
 	})
 
 	fastify.get('/health', async (req, reply) => {
@@ -43,8 +43,8 @@ const _startHttpServer = async function (instance) {
 		reply.code(200)
 		return {
 			success: true,
+			meta: { numY: maxRacks, numX: instance.channelCount, emptyMapping: instance.emptyMapping },
 			mapping: instance.config.racks,
-			meta: { maxRacks, numChannels: instance.channelCount, emptyMapping: instance.emptyMapping },
 		}
 	})
 
