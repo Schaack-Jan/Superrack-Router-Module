@@ -111,6 +111,10 @@ const _startHttpServer = async function (instance) {
 	fastify.get('/midi/plugin', async (req, reply) => {
 		return reply.sendFile('./public/midi-plugin.html')
 	})
+	// MIDI Snapshot Mapping UI
+	fastify.get('/midi/snapshot', async (req, reply) => {
+		return reply.sendFile('./public/midi-snapshot.html')
+	})
 
 	// API: Get current MIDI plugin mapping
 	fastify.get('/midi/plugin/mapping', async (req, reply) => {
@@ -135,24 +139,22 @@ const _startHttpServer = async function (instance) {
 
 			let isChanged = true
 			if (mapping) {
-				isChanged = JSON.stringify(instance.config.hotPlugin.mapping) !== JSON.stringify(mapping)
+				isChanged = JSON.stringify(instance.config.hotPlugin?.mapping) !== JSON.stringify(mapping)
 				if (isChanged) {
-					instance.config.hotPlugin.mapping = mapping
 					instance.hotPlugin.mapping = mapping
 				}
 			}
 
 			if (eventType) {
-				instance.config.hotPlugin.type = eventType
 				instance.hotPlugin.type = eventType
 			}
 
 			if (midiChannel) {
-				instance.config.hotPlugin.channel = midiChannel
 				instance.hotPlugin.channel = midiChannel
 			}
 
 			if (isChanged) {
+				instance.config.hotPlugin = instance.hotPlugin
 				instance.saveConfig(instance.config)
 				instance._applyConfigToLocalScopes()
 				instance.updateActions()
@@ -173,18 +175,46 @@ const _startHttpServer = async function (instance) {
 		reply.code(200)
 		return {
 			success: true,
-			meta: { default: instance.defaultMidiMap?.snapshot || {} },
-			mapping: instance.config.midiMap?.snapshot || {},
+			meta: { numX: 128, numY: 6, emptyMapping: instance.hotSnapshot.emptyMapping },
+			mapping: instance.hotSnapshot.mapping,
+			type: instance.hotSnapshot.type,
+			channel: instance.hotSnapshot.channel,
 		}
 	})
 	// API: Update MIDI snapshot mapping
 	fastify.post('/midi/snapshot/update', async (req, reply) => {
 		try {
-			const mapping = req.body?.mapping || {}
-			instance.config.midiMap = instance.config.midiMap || {}
-			instance.config.midiMap.snapshot = mapping
-			instance.saveConfig(instance.config)
-			instance._applyConfigToLocalScopes()
+			const mapping = req.body?.mapping
+			const eventType = req.body?.eventType
+			const midiChannel = req.body?.channel
+
+			if (!mapping && !eventType && !midiChannel) throw new Error('No mapping, eventType or channel provided')
+
+			let isChanged = true
+			if (mapping) {
+				isChanged = JSON.stringify(instance.config.hotSnapshot?.mapping) !== JSON.stringify(mapping)
+				if (isChanged) {
+					instance.hotSnapshot.mapping = mapping
+				}
+			}
+
+			if (eventType) {
+				instance.hotSnapshot.type = eventType
+			}
+
+			if (midiChannel) {
+				instance.hotSnapshot.channel = midiChannel
+			}
+
+			if (isChanged) {
+				instance.config.hotSnapshot = instance.hotSnapshot
+				instance.saveConfig(instance.config)
+				instance._applyConfigToLocalScopes()
+				instance.updateActions()
+				instance.updateFeedbacks()
+				instance.updateVariableDefinitions()
+			}
+
 			reply.code(200)
 			return { status: 200, result: { updated: true } }
 		} catch (e) {

@@ -27,6 +27,7 @@ class ModuleInstance extends InstanceBase {
 		this.emptyMapping = defaults.mapping(this.rackCount)
 		this.rackMap = this.emptyMapping
 		this.hotPlugin = defaults.hotPlugin
+		this.hotSnapshot = defaults.hotSnapshot
 
 		this.logLevel = defaults.logLevel ?? 'error'
 		this._http = defaults.httpSettings
@@ -211,6 +212,10 @@ class ModuleInstance extends InstanceBase {
 
 		if (this.config?.hotPlugin && this.config.hotPlugin !== {}) {
 			this.hotPlugin = this.config.hotPlugin
+		}
+
+		if (this.config?.hotSnapshot && this.config.hotSnapshot !== {}) {
+			this.hotSnapshot = this.config.hotSnapshot
 		}
 
 		if (!preventConfigReupdate && changed) {

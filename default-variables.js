@@ -18,5 +18,6 @@ module.exports = {
 	httpSettings: { server: null, port: 8010, started: false },
 	logLevel: 'error',
 	hotPlugin: { type: 'cc', channel: 1, mapping: getEmptyTemplate(12), emptyMapping: getEmptyTemplate(12) },
+	hotSnapshot: { type: 'cc', channel: 2, mapping: getEmptyTemplate(6), emptyMapping: getEmptyTemplate(6) },
 	mapping: getEmptyTemplate,
 }
