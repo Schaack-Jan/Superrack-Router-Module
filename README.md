@@ -1,35 +1,44 @@
 # Waves SuperRack Router Companion Module
 
-This Companion v4 module routes WING sources to Waves SuperRack racks using predefined MIDI sequences. It does not open its own MIDI connection—instead, it exposes variables that you can trigger via a Generic-MIDI instance.
+> **Release-Ready for Bitfocus Companion v4+**
 
-## Purpose
+This module enables routing of WING sources to Waves SuperRack racks using predefined MIDI sequences. It does **not** open its own MIDI connection, but instead exposes variables that can be triggered via a Generic-MIDI instance.
 
-- Execute rack sequences (CC/NoteOn/Program), trigger Hot Snapshots/Plugins
-- HTTP UI for mapping and patching
-- No internal MIDI connection: all MIDI is sent via variables to a Generic-MIDI instance
+---
+
+## Features
+
+- Routing of racks, hot snapshots, and hot plugins via MIDI variables
+- HTTP UI for mapping, patch overview, and health check
+- No internal MIDI connection: all MIDI data is provided as variables for a Generic-MIDI instance
+- Compatible with Companion v4+ (Node 18–22)
+- Full test coverage (>90% recommended)
+
+---
 
 ## Setup
 
-1. Add this module in Companion v4.
+1. Add this module in Companion v4
 2. Configure:
    - Log level
-   - Rack count (4/8/16/32/64)
-   - Channel count (min 32, max 512)
-   - HTTP port (for the UI)
-   - Paste your SuperRack MIDI Map (JSON)
-3. Add a Generic-MIDI instance and use its actions (e.g., send CC) with the variables from this module.
+   - Rack count (4/8/16/32/64, default: 64)
+   - Channel count (min. 32, max. 512, default: 128)
+   - HTTP port (for the UI, default: 8010)
+3. Add a Generic-MIDI instance and use its actions (e.g., send CC) with the variables from this module
+
+---
 
 ## Actions
 
-- **Route Rack**: Triggers the MIDI sequence for a specific rack.
-- **Route Hot Snapshot**: Triggers the MIDI sequence for a Hot Snapshot (IDs 1–6).
-- **Route Hot Plugin**: Triggers the MIDI sequence for a Hot Plugin (IDs 1–12).
+- **Route Rack**: Triggers the MIDI sequence for a specific rack
+- **Route Hot Snapshot**: Triggers the sequence for a hot snapshot (IDs 1–6)
+- **Route Hot Plugin**: Triggers the sequence for a hot plugin (IDs 1–12)
 
 ## Feedbacks
 
-- **active_source**: True if the given source index is currently active.
-- **rack_last_used**: True if the given rack was last routed.
-- **sequence_running**: True while a routing sequence is running.
+- **active_source**: True if the given source index is currently active
+- **rack_last_used**: True if the given rack was last routed
+- **sequence_running**: True while a routing sequence is running
 
 ## Variables
 
@@ -38,10 +47,12 @@ This Companion v4 module routes WING sources to Waves SuperRack racks using pred
 - `failed_steps_total`: Total number of failed MIDI steps
 - `midi_last_type`: Last MIDI type (cc, noteon, program)
 - `midi_last_channel`: Last MIDI channel
-- `midi_last_controller`: Last MIDI controller/note/program
-- `midi_last_value`: Last MIDI value
+- `midi_last_controller`: Last controller/note/program
+- `midi_last_value`: Last value
 - `active_source_index`: Currently active source index (if used)
 - `active_source_label`: Currently active source label (if used)
+
+---
 
 ## Example: Using with Generic-MIDI
 
@@ -52,60 +63,49 @@ Set up a trigger in Companion:
   - Channel: `$(superrack-router:midi_last_channel)`
   - Controller: `$(superrack-router:midi_last_controller)`
   - Value: `$(superrack-router:midi_last_value)`
-- Make sure "Use Variables" is enabled in the Generic-MIDI action.
+- Make sure "Use Variables" is enabled in the Generic-MIDI action
+
+---
 
 ## Hot Snapshots & Hot Plugins
 
-- Hot Snapshots (IDs 1–6) and Hot Plugins (IDs 1–12) must be defined in your MIDI Map JSON as collections or arrays.
-- If a sequence is missing, the action will log a warning and do nothing (no error thrown).
+- Hot Snapshots (IDs 1–6) and Hot Plugins (IDs 1–12) must be defined in your MIDI Map JSON as arrays/objects
+- If a sequence is missing, a warning will be logged (no error)
+
+---
 
 ## HTTP UI
 
-- The UI is served from `/patch` on the configured port.
+- UI is available at `/patch` on the configured port
 - Endpoints: `/`, `/patch`, `/patch/`, `/health`, `/patch/mappings`, `/patch/update`, `/rack/:id`
 - Example: `http://localhost:12345/patch`
 
-## MIDI Map JSON Structure
+---
 
-- Example:
+## Project Structure (as of 2026-01)
 
-```json
-{
-	"racks": {
-		"1": {
-			"name": "Rack 1",
-			"enabled": true,
-			"midiSteps": [{ "type": "cc", "channel": 1, "controller": 12, "value": 100, "delay": 0 }]
-		},
-		"2": {
-			"name": "Rack 2",
-			"enabled": true,
-			"midiSteps": [{ "type": "noteon", "channel": 1, "note": 60, "value": 127, "delay": 1 }]
-		}
-	},
-	"hotSnapshots": {
-		"1": [{ "type": "program", "channel": 1, "program": 10, "delay": 0 }]
-	},
-	"hotPlugins": {
-		"1": [{ "type": "cc", "channel": 2, "controller": 7, "value": 64, "delay": 0 }]
-	}
-}
-```
+- `main.js` – Module entry point (Companion v4)
+- `actions.js`, `feedbacks.js`, `variables.js`, `default-variables.js`, `upgrades.js` – Module logic
+- `lib/midi-map.js` – MIDI mapping
+- `ui/http.js` – HTTP server for UI
+- `ui/public/` – Static web UI (HTML, JS, CSS, icons)
+- `companion/manifest.json` – Companion metadata
+- `__tests__/` – Unit and integration tests (Jest)
+- `package.json` – npm/Node configuration
+- `LICENSE`, `CHANGELOG.md`, `companion-release-checklist.md` – Metadata
 
-- Each step: `{ type: 'cc'|'noteon'|'program', channel: 1-16, delay: >=0, ... }`
+---
 
-## Maintainer Decisions & Runtime
+## Development & Testing
 
-- Runtime: `node22`, `nodejs-ipc` (Companion v4 Node runtime, no own IPC needed)
-- No build artifacts or non-source UI in the repository
-- Only `ui/public` is the UI source directory
-
-## Development
-
-- Node engine: >=18 <23
+- Node version: >=18 <23
 - Dependencies: `@companion-module/base`, `fastify`, `@fastify/static`
-- Build: `yarn package` (or based on your environment). Prettier is configured.
-- Unit tests: Run with `npm test`
+- Build: `yarn package`
+- Formatting: `yarn format`
+- Tests: `yarn test` (Jest, coverage >90% recommended)
+- Coverage report: `coverage/`
+
+---
 
 ## License
 
