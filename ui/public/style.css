@@ -241,7 +241,6 @@ button:hover {
 	max-width: 90vw;
 	width: 100%;
 	z-index: 9999;
-	display: none;
 }
 
 .custom-alert {
