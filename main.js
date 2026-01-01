@@ -7,6 +7,8 @@ const defaults = require('./default-variables')
 const { startHttpServer, stopHttpServer } = require('./ui/http')
 const { applyMidiStepToVariables } = require('./lib/midi-map')
 
+const MIDI_STEP_DELAY_MS = 50
+
 class ModuleInstance extends InstanceBase {
 	constructor(internal) {
 		super(internal)
@@ -311,7 +313,6 @@ class ModuleInstance extends InstanceBase {
 		try {
 			await this._executeRackSequence(rackId)
 			this.state.lastRoutedRacks = [rackId, ...(this.state.lastRoutedRacks || []).filter((id) => id !== rackId)].slice(0, 8)
-			this.state.lastActionTimestamp = Date.now()
 		} finally {
 			this.state.sequenceRunning = false
 			this._updateVariables()
@@ -356,15 +357,17 @@ class ModuleInstance extends InstanceBase {
 			}
 			try {
 				applyMidiStepToVariables(this, step)
+				this.state.lastActionTimestamp = Date.now()
+				this._updateVariables({ setActionTimestamp: true })
 			} catch (e) {
 				this._log('error', 'midi step error', { ...logContext, error: e.message })
 				this.state.failedStepsTotal++
 				this._updateVariables()
 			}
-			if (step.delay > 0) await new Promise((res) => setTimeout(res, step.delay))
+			const totalDelay = (step.delay > 0 ? step.delay : 0) + MIDI_STEP_DELAY_MS
+			if (totalDelay > 0) await new Promise((res) => setTimeout(res, totalDelay))
 		}
 		this._log('info', `ended ${logContext.type} sequence`, logContext)
-		this._updateVariables()
 	}
 
 	async _executeRackSequence(rackId) {
@@ -382,14 +385,17 @@ class ModuleInstance extends InstanceBase {
 		await this._executeSequence(steps, { type: 'plugin', pluginId })
 	}
 
-	_updateVariables() {
-		this.setVariableValues({
+	_updateVariables(opts = {}) {
+		const values = {
 			last_routed_racks: JSON.stringify(this.state.lastRoutedRacks || []),
 			failed_steps_total: this.state.failedStepsTotal,
-			last_action_timestamp: this.state.lastActionTimestamp,
 			active_source_index: this.state.activeSourceIndex,
 			active_source_label: this.state.activeSourceLabel,
-		})
+		}
+		if (opts.setActionTimestamp) {
+			values.last_action_timestamp = this.state.lastActionTimestamp
+		}
+		this.setVariableValues(values)
 	}
 
 	_buildRackChoices() {
