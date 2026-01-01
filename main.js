@@ -34,6 +34,7 @@ class ModuleInstance extends InstanceBase {
 		this._http = defaults.httpSettings
 	}
 
+	// Companion lifecycle method: Called when the module is initialized
 	async init(config) {
 		this.config = config
 		this._applyConfigToLocalScopes()
@@ -44,6 +45,7 @@ class ModuleInstance extends InstanceBase {
 		await startHttpServer(this)
 	}
 
+	// Companion lifecycle method: Called when the module is destroyed
 	async destroy() {
 		this._log('debug', 'destroy start')
 		this.state.sequenceRunning = false
@@ -51,6 +53,7 @@ class ModuleInstance extends InstanceBase {
 		this._log('debug', 'destroy done')
 	}
 
+	// Companion lifecycle method: Called when the configuration is updated
 	async configUpdated(config) {
 		this.config = config
 		this._applyConfigToLocalScopes(true)
@@ -84,6 +87,7 @@ class ModuleInstance extends InstanceBase {
 		}
 	}
 
+	// Companion lifecycle method: Defines the configuration fields for the module
 	getConfigFields() {
 		this.config = this.config || {}
 
@@ -147,7 +151,6 @@ class ModuleInstance extends InstanceBase {
 
 	_applyConfigToLocalScopes(preventConfigReupdate = false) {
 		let changed = false
-		const prev = { ...this.config }
 
 		const newLogLevel = this.config?.logLevel || 'error'
 		if (newLogLevel !== this.logLevel) {
