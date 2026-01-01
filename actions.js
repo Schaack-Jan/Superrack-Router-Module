@@ -46,20 +46,26 @@ module.exports = function (self) {
 			options: [
 				{
 					id: 'channel',
-					type: 'number',
-					label: 'Channel (Integer)',
-					min: 1,
-					max: self.channelCount || self.maxRacks,
-					default: 1,
-					step: 1,
+					type: 'textinput',
+					label: 'Channel (Integer or Variable)',
+					default: '1',
 					required: true,
-					tooltip: 'Enter the channel number to trigger (1-based index).',
+					tooltip: 'Enter the channel number or a variable (e.g. ${wing:sel_index}) to trigger (1-based index).',
 				},
 			],
 			callback: async (event) => {
-				const channel = parseInt(event.options.channel, 10)
+				let channelValue = event.options.channel
+				if (typeof self.parseVariablesInString === 'function') {
+					try {
+						channelValue = await self.parseVariablesInString(channelValue)
+					} catch (err) {
+						self.log('error', `Failed to parse variables: ${err?.message || err}`)
+						return
+					}
+				}
+				const channel = parseInt(channelValue, 10)
 				if (isNaN(channel) || channel < 1 || channel > (self.channelCount || self.maxRacks)) {
-					self.log('warn', `Invalid channel number: ${event.options.channel}`)
+					self.log('warn', `Invalid channel number: ${event.options.channel} (resolved: ${channelValue})`)
 					return
 				}
 				let rackId = self.rackMap?.[channel]
