@@ -5,7 +5,7 @@ const UpdateFeedbacks = require('./feedbacks')
 const UpdateVariableDefinitions = require('./variables')
 const defaults = require('./default-variables')
 const { startHttpServer, stopHttpServer } = require('./ui/http')
-const { validateRackMidiMap, parseMidiMapString, applyMidiStepToVariables } = require('./lib/midi-map')
+const { applyMidiStepToVariables } = require('./lib/midi-map')
 
 class ModuleInstance extends InstanceBase {
 	constructor(internal) {
@@ -23,8 +23,6 @@ class ModuleInstance extends InstanceBase {
 		this.rackCount = defaults.rackCount
 		this.channelCount = defaults.channelCount
 		this.hotMap = defaults.hotMap
-		this.midiMap = defaults.midi
-		this.midiMapObj = { racks: {} }
 		this.emptyMapping = defaults.mapping(this.rackCount)
 		this.rackMap = this.emptyMapping
 		this.hotPlugin = defaults.hotPlugin
@@ -37,7 +35,6 @@ class ModuleInstance extends InstanceBase {
 	async init(config) {
 		this.config = config
 		this._applyConfigToLocalScopes()
-		await this._loadAllJsonFromConfig()
 		this.updateActions()
 		this.updateFeedbacks()
 		this.updateVariableDefinitions()
@@ -82,14 +79,6 @@ class ModuleInstance extends InstanceBase {
 			} finally {
 				this._http.restarting = false
 			}
-		}
-		// MIDI-Map-Änderung: Actions/Feedbacks/Variables neu bauen
-		const prevMidiMap = JSON.stringify(this.midiMapObj)
-		await this._loadAllJsonFromConfig()
-		if (JSON.stringify(this.midiMapObj) !== prevMidiMap) {
-			this.updateActions()
-			this.updateFeedbacks()
-			this.updateVariableDefinitions()
 		}
 	}
 
@@ -151,14 +140,6 @@ class ModuleInstance extends InstanceBase {
 				default: this._http.port,
 				tooltip: 'Port for the Fastify HTTP server',
 			},
-			{
-				type: 'textinput',
-				id: 'midiMap',
-				label: 'Superrack MIDI Map (JSON)',
-				width: 12,
-				default: this.midiMap,
-				multiline: true,
-			},
 		]
 	}
 
@@ -194,15 +175,6 @@ class ModuleInstance extends InstanceBase {
 		}
 		if (clamped !== this.channelCount) {
 			this.channelCount = clamped
-			changed = true
-		}
-
-		// midiMap remains string in config; ensure present
-		if (typeof this.config?.midiMap === 'string') {
-			this.midiMap = this.config.midiMap
-		} else if (!this.config?.midiMap) {
-			this.config = this.config || {}
-			this.config.midiMap = this.midiMap
 			changed = true
 		}
 
@@ -297,24 +269,19 @@ class ModuleInstance extends InstanceBase {
 		this.log(level, line)
 	}
 
-	async _loadAllJsonFromConfig() {
-		const raw = typeof this.config?.midiMap === 'string' ? this.config.midiMap : this.midiMap || ''
-		this.midiMapObj = parseMidiMapString(raw)
-		if (!validateRackMidiMap(this.midiMapObj)) {
-			this._log('warn', 'Invalid midiMap JSON structure, using empty racks')
-			this.midiMapObj = { racks: {} }
-		}
-	}
-
-	_parseJsonField(kind, validateFn, defaults) {
-		if (kind !== 'midiMap') return
-		const raw = this?.midiMap || ''
-		const parsed = parseMidiMapString(raw)
-		this.midiMapObj = validateRackMidiMap(parsed) ? parsed : defaults
-	}
-
-	_validateRackMidiMap(obj) {
-		return validateRackMidiMap(obj)
+	// Liefert die MIDI-Sequenz für ein Rack über hotMap
+	getMidiSequenceForRack(rackId) {
+		const entry = this.hotMap.find((e) => String(e.rack) === String(rackId))
+		if (!entry) return null
+		// Beispiel: Steps aus Plugin- und Snapshot-Mapping generieren
+		const pluginStep = this.hotPlugin?.mapping?.find((p) => p && p.id === entry.plugin)
+		const snapshotStep = this.hotSnapshot?.mapping?.find((s) => s && s.id === entry.snapshot)
+		if (!pluginStep || !snapshotStep) return null
+		// MIDI Steps bauen (dieses Beispiel nimmt an, dass type/channel/cc/value-Struktur wie bisher ist)
+		return [
+			{ type: this.hotPlugin.type, channel: this.hotPlugin.channel, controller: pluginStep.id, value: pluginStep.value, delay: 0 },
+			{ type: this.hotSnapshot.type, channel: this.hotSnapshot.channel, controller: snapshotStep.id, value: snapshotStep.value, delay: 0 },
+		]
 	}
 
 	// --- Routing Actions ---
@@ -323,117 +290,23 @@ class ModuleInstance extends InstanceBase {
 		this.state.sequenceStartTs = Date.now()
 		try {
 			await this._executeRackSequence(rackId)
-			this.state.lastRoutedRacks = [rackId, ...(this.state.lastRoutedRacks || []).filter((id) => id !== rackId)].slice(
-				0,
-				8,
-			)
+			this.state.lastRoutedRacks = [rackId, ...(this.state.lastRoutedRacks || []).filter((id) => id !== rackId)].slice(0, 8)
 			this.state.lastActionTimestamp = Date.now()
 		} finally {
 			this.state.sequenceRunning = false
 			this._updateVariables()
 		}
-	}
-
-	async routeSnapshot(snapshotId) {
-		// Hot Snapshots: IDs 1-6
-		const seq = this.midiMapObj?.hotSnapshots?.[snapshotId]
-		if (!seq) {
-			this._log('warn', `No sequence for Hot Snapshot ${snapshotId}`)
-			return
-		}
-		this.state.sequenceRunning = true
-		this.state.sequenceStartTs = Date.now()
-		try {
-			for (const step of seq) {
-				if (Date.now() - this.state.sequenceStartTs > this.state.sequenceTimeoutMs) {
-					this._log('error', 'timeout during hot snapshot sequence', { snapshotId })
-					this.state.failedStepsTotal++
-					break
-				}
-				try {
-					applyMidiStepToVariables(this, step)
-				} catch (e) {
-					this._log('error', 'midi step error', { snapshotId, error: e.message })
-					this.state.failedStepsTotal++
-				}
-				if (step.delay > 0) await new Promise((res) => setTimeout(res, step.delay))
-			}
-			this.state.lastActionTimestamp = Date.now()
-		} finally {
-			this.state.sequenceRunning = false
-			this._updateVariables()
-		}
-	}
-
-	async routePlugin(pluginId) {
-		// Hot Plugins: IDs 1-12
-		const seq = this.midiMapObj?.hotPlugins?.[pluginId]
-		if (!seq) {
-			this._log('warn', `No sequence for Hot Plugin ${pluginId}`)
-			return
-		}
-		this.state.sequenceRunning = true
-		this.state.sequenceStartTs = Date.now()
-		try {
-			for (const step of seq) {
-				if (Date.now() - this.state.sequenceStartTs > this.state.sequenceTimeoutMs) {
-					this._log('error', 'timeout during hot plugin sequence', { pluginId })
-					this.state.failedStepsTotal++
-					break
-				}
-				try {
-					applyMidiStepToVariables(this, step)
-				} catch (e) {
-					this._log('error', 'midi step error', { pluginId, error: e.message })
-					this.state.failedStepsTotal++
-				}
-				if (step.delay > 0) await new Promise((res) => setTimeout(res, step.delay))
-			}
-			this.state.lastActionTimestamp = Date.now()
-		} finally {
-			this.state.sequenceRunning = false
-			this._updateVariables()
-		}
-	}
-
-	_updateVariables() {
-		this.setVariableValues({
-			last_routed_racks: JSON.stringify(this.state.lastRoutedRacks || []),
-			failed_steps_total: this.state.failedStepsTotal,
-			last_action_timestamp: this.state.lastActionTimestamp,
-			active_source_index: this.state.activeSourceIndex,
-			active_source_label: this.state.activeSourceLabel,
-		})
-	}
-
-	_buildRackChoices() {
-		const racks = this.midiMapObj?.racks || {}
-		return Object.entries(racks).map(([id, rack]) => ({ id, label: `${id} – ${rack.name}` }))
-	}
-
-	_buildHotSnapshotChoices() {
-		// IDs 1–6
-		return Array.from({ length: 6 }, (_, i) => ({ id: String(i + 1), label: `Hot Snapshot ${i + 1}` }))
-	}
-
-	_buildHotPluginChoices() {
-		// IDs 1–12
-		return Array.from({ length: 12 }, (_, i) => ({ id: String(i + 1), label: `Hot Plugin ${i + 1}` }))
 	}
 
 	async _executeRackSequence(rackId) {
-		const rack = this.midiMapObj?.racks?.[rackId]
-		if (!rack) {
-			this._log('warn', 'rack not found', { rackId })
+		const steps = this.getMidiSequenceForRack(rackId)
+		if (!steps) {
+			this._log('warn', 'rack not found in hotMap', { rackId })
 			return
 		}
-		if (!rack.enabled) {
-			this._log('debug', 'rack disabled', { rackId })
-			return
-		}
-		this._log('info', 'rack sequence started', { rackId, steps: rack.midiSteps.length })
+		this._log('info', 'rack sequence started', { rackId, steps: steps.length })
 		this.state.sequenceStartTs = Date.now()
-		for (const step of rack.midiSteps) {
+		for (const step of steps) {
 			if (Date.now() - this.state.sequenceStartTs > this.state.sequenceTimeoutMs) {
 				this._log('error', 'timeout during rack sequence', { rackId })
 				this.state.failedStepsTotal++
@@ -451,6 +324,30 @@ class ModuleInstance extends InstanceBase {
 		}
 		this._log('info', 'ended rack sequence', { rackId })
 		this._updateVariables()
+	}
+
+	_updateVariables() {
+		this.setVariableValues({
+			last_routed_racks: JSON.stringify(this.state.lastRoutedRacks || []),
+			failed_steps_total: this.state.failedStepsTotal,
+			last_action_timestamp: this.state.lastActionTimestamp,
+			active_source_index: this.state.activeSourceIndex,
+			active_source_label: this.state.activeSourceLabel,
+		})
+	}
+
+	_buildRackChoices() {
+		return this.hotMap.map((entry) => ({ id: String(entry.rack), label: `Rack ${entry.rack} (Plugin ${entry.plugin}, Snapshot ${entry.snapshot})` }))
+	}
+
+	_buildHotSnapshotChoices() {
+		// IDs 1–6
+		return Array.from({ length: 6 }, (_, i) => ({ id: String(i + 1), label: `Hot Snapshot ${i + 1}` }))
+	}
+
+	_buildHotPluginChoices() {
+		// IDs 1–12
+		return Array.from({ length: 12 }, (_, i) => ({ id: String(i + 1), label: `Hot Plugin ${i + 1}` }))
 	}
 }
 
