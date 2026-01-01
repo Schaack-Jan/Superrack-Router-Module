@@ -273,8 +273,7 @@ button:hover {
 }
 
 .close-btn:hover {
-	opacity: 1;
-	background-color: transparent;
+	background-color: #0000001c;
 }
 
 @keyframes fadein {
