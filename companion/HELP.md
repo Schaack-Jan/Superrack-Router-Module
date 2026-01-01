@@ -2,18 +2,32 @@
 
 ## Overview
 
-This module routes WING sources to Waves SuperRack racks using predefined MIDI sequences. It does not open its own MIDI connection. Instead, it exposes variables for use with a Generic-MIDI instance.
+This module routes WING sources to Waves SuperRack racks using predefined MIDI sequences. It does **not** open its own MIDI connection. Instead, it exposes variables for use with a Generic-MIDI instance.
 
-## Setup
+---
 
-1. Add this module in Companion v4.
-2. Configure:
+## Prerequisites
+
+- A connection to your mixing console that can output the selected channel as an **integer** (INT)
+- A **Generic-MIDI** connection that is integrated with Waves SuperRack
+
+---
+
+## How to Use
+
+1. **Add this module in Companion v4.**
+2. **Configure:**
    - Log level
    - Rack count (4/8/16/32/64)
    - Channel count (min 32, max 512)
    - HTTP port (for the UI)
    - Paste your SuperRack MIDI Map (JSON)
-3. Add a Generic-MIDI instance and use its actions (e.g., send CC) with the variables from this module.
+3. **Add a Generic-MIDI instance** and connect it to Waves SuperRack.
+4. **Set up triggers:**
+   - **Trigger 1:** On channel change from your mixing console, send the INT value to the `superrack-router` `trigger_channel_action`.
+   - **Trigger 2:** On every change of `$(superrack-router:last_action_timestamp)`, send a MIDI message on the Generic-MIDI connection using the variables provided by this module (`midi_last_channel`, `midi_last_controller`, `midi_last_value`, etc.).
+
+---
 
 ## Actions
 
@@ -39,62 +53,42 @@ This module routes WING sources to Waves SuperRack racks using predefined MIDI s
 - `active_source_index`: Currently active source index (if used)
 - `active_source_label`: Currently active source label (if used)
 
+---
+
 ## Example: Using with Generic-MIDI
 
-Set up a trigger in Companion:
+Set up triggers in Companion:
 
-- When `$(superrack-router:last_action_timestamp)` changes,
-- Send a MIDI CC message with:
+- **Trigger 1:** When the selected channel changes on your mixing console, send the INT value to the `superrack-router` trigger channel action.
+- **Trigger 2:** When `$(superrack-router:last_action_timestamp)` changes, send a MIDI CC message with:
   - Channel: `$(superrack-router:midi_last_channel)`
   - Controller: `$(superrack-router:midi_last_controller)`
   - Value: `$(superrack-router:midi_last_value)`
 - Make sure "Use Variables" is enabled in the Generic-MIDI action.
+
+---
 
 ## Hot Snapshots & Hot Plugins
 
 - Hot Snapshots (IDs 1–6) and Hot Plugins (IDs 1–12) must be defined in your MIDI Map JSON as collections or arrays.
 - If a sequence is missing, the action will log a warning and do nothing (no error thrown).
 
+---
+
 ## HTTP UI
 
-- The UI is served from `/patch` on the configured port.
+- The UI is served from `/` on the configured port.
 - Endpoints: `/`, `/patch`, `/patch/`, `/health`, `/patch/mappings`, `/patch/update`, `/rack/:id`
-- Example: `http://localhost:12345/patch`
+- Example: `http://localhost:8010/`
 
-## MIDI Map JSON Structure
-
-- Example:
-
-```json
-{
-	"racks": {
-		"1": {
-			"name": "Rack 1",
-			"enabled": true,
-			"midiSteps": [{ "type": "cc", "channel": 1, "controller": 12, "value": 100, "delay": 0 }]
-		},
-		"2": {
-			"name": "Rack 2",
-			"enabled": true,
-			"midiSteps": [{ "type": "noteon", "channel": 1, "note": 60, "value": 127, "delay": 1 }]
-		}
-	},
-	"hotSnapshots": {
-		"1": [{ "type": "program", "channel": 1, "program": 10, "delay": 0 }]
-	},
-	"hotPlugins": {
-		"1": [{ "type": "cc", "channel": 2, "controller": 7, "value": 64, "delay": 0 }]
-	}
-}
-```
-
-- Each step: `{ type: 'cc'|'noteon'|'program', channel: 1-16, delay: >=0, ... }`
+---
 
 ## Troubleshooting
 
 - If the UI does not load, check the configured HTTP port and ensure no other process is using it.
-- If routing actions do not work, check your MIDI Map JSON and logs for warnings.
 - No internal MIDI connection is opened; all MIDI is sent via variables to a Generic-MIDI instance.
+
+---
 
 ## Maintainer Notes
 
