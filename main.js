@@ -279,8 +279,8 @@ class ModuleInstance extends InstanceBase {
 		const snapshotStep = this.hotSnapshot?.mapping?.find((s) => s && s.id === entry.snapshot)
 		if (!pluginStep || !snapshotStep) return null
 		return [
-			{ type: this.hotPlugin.type, channel: this.hotPlugin.channel, controller: pluginStep.id, value: pluginStep.value, delay: 0 },
 			{ type: this.hotSnapshot.type, channel: this.hotSnapshot.channel, controller: snapshotStep.id, value: snapshotStep.value, delay: 0 },
+			{ type: this.hotPlugin.type, channel: this.hotPlugin.channel, controller: pluginStep.id, value: pluginStep.value, delay: 0 },
 		]
 	}
 
