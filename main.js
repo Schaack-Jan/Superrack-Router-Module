@@ -273,14 +273,34 @@ class ModuleInstance extends InstanceBase {
 	getMidiSequenceForRack(rackId) {
 		const entry = this.hotMap.find((e) => String(e.rack) === String(rackId))
 		if (!entry) return null
-		// Beispiel: Steps aus Plugin- und Snapshot-Mapping generieren
 		const pluginStep = this.hotPlugin?.mapping?.find((p) => p && p.id === entry.plugin)
 		const snapshotStep = this.hotSnapshot?.mapping?.find((s) => s && s.id === entry.snapshot)
 		if (!pluginStep || !snapshotStep) return null
-		// MIDI Steps bauen (dieses Beispiel nimmt an, dass type/channel/cc/value-Struktur wie bisher ist)
 		return [
 			{ type: this.hotPlugin.type, channel: this.hotPlugin.channel, controller: pluginStep.id, value: pluginStep.value, delay: 0 },
 			{ type: this.hotSnapshot.type, channel: this.hotSnapshot.channel, controller: snapshotStep.id, value: snapshotStep.value, delay: 0 },
+		]
+	}
+
+	// Liefert die MIDI-Sequenz für einen Hot Snapshot
+	getMidiSequenceForSnapshot(snapshotId) {
+		const entry = this.hotMap.find((e) => String(e.snapshot) === String(snapshotId))
+		if (!entry) return null
+		const snapshotStep = this.hotSnapshot?.mapping?.find((s) => s && s.id === entry.snapshot)
+		if (!snapshotStep) return null
+		return [
+			{ type: this.hotSnapshot.type, channel: this.hotSnapshot.channel, controller: snapshotStep.id, value: snapshotStep.value, delay: 0 },
+		]
+	}
+
+	// Liefert die MIDI-Sequenz für ein Hot Plugin
+	getMidiSequenceForPlugin(pluginId) {
+		const entry = this.hotMap.find((e) => String(e.plugin) === String(pluginId))
+		if (!entry) return null
+		const pluginStep = this.hotPlugin?.mapping?.find((p) => p && p.id === entry.plugin)
+		if (!pluginStep) return null
+		return [
+			{ type: this.hotPlugin.type, channel: this.hotPlugin.channel, controller: pluginStep.id, value: pluginStep.value, delay: 0 },
 		]
 	}
 
@@ -298,17 +318,38 @@ class ModuleInstance extends InstanceBase {
 		}
 	}
 
-	async _executeRackSequence(rackId) {
-		const steps = this.getMidiSequenceForRack(rackId)
+	async routeSnapshot(snapshotId) {
+		this.state.sequenceRunning = true
+		this.state.sequenceStartTs = Date.now()
+		try {
+			await this._executeSnapshotSequence(snapshotId)
+		} finally {
+			this.state.sequenceRunning = false
+			this._updateVariables()
+		}
+	}
+
+	async routePlugin(pluginId) {
+		this.state.sequenceRunning = true
+		this.state.sequenceStartTs = Date.now()
+		try {
+			await this._executePluginSequence(pluginId)
+		} finally {
+			this.state.sequenceRunning = false
+			this._updateVariables()
+		}
+	}
+
+	async _executeSequence(steps, logContext) {
 		if (!steps) {
-			this._log('warn', 'rack not found in hotMap', { rackId })
+			this._log('warn', `${logContext.type} not found in hotMap`, logContext)
 			return
 		}
-		this._log('info', 'rack sequence started', { rackId, steps: steps.length })
+		this._log('info', `${logContext.type} sequence started`, { ...logContext, steps: steps.length })
 		this.state.sequenceStartTs = Date.now()
 		for (const step of steps) {
 			if (Date.now() - this.state.sequenceStartTs > this.state.sequenceTimeoutMs) {
-				this._log('error', 'timeout during rack sequence', { rackId })
+				this._log('error', `timeout during ${logContext.type} sequence`, logContext)
 				this.state.failedStepsTotal++
 				this._updateVariables()
 				return
@@ -316,14 +357,29 @@ class ModuleInstance extends InstanceBase {
 			try {
 				applyMidiStepToVariables(this, step)
 			} catch (e) {
-				this._log('error', 'midi step error', { rackId, error: e.message })
+				this._log('error', 'midi step error', { ...logContext, error: e.message })
 				this.state.failedStepsTotal++
 				this._updateVariables()
 			}
 			if (step.delay > 0) await new Promise((res) => setTimeout(res, step.delay))
 		}
-		this._log('info', 'ended rack sequence', { rackId })
+		this._log('info', `ended ${logContext.type} sequence`, logContext)
 		this._updateVariables()
+	}
+
+	async _executeRackSequence(rackId) {
+		const steps = this.getMidiSequenceForRack(rackId)
+		await this._executeSequence(steps, { type: 'rack', rackId })
+	}
+
+	async _executeSnapshotSequence(snapshotId) {
+		const steps = this.getMidiSequenceForSnapshot(snapshotId)
+		await this._executeSequence(steps, { type: 'snapshot', snapshotId })
+	}
+
+	async _executePluginSequence(pluginId) {
+		const steps = this.getMidiSequenceForPlugin(pluginId)
+		await this._executeSequence(steps, { type: 'plugin', pluginId })
 	}
 
 	_updateVariables() {
