@@ -46,14 +46,22 @@ module.exports = function (self) {
 			options: [
 				{
 					id: 'channel',
-					type: 'dropdown',
-					label: 'Channel (Int)',
-					choices: Array.from({ length: self.channelCount }, (_, i) => ({ id: String(i + 1), label: `Channel ${String(i + 1)}` })),
-					default: '1',
+					type: 'number',
+					label: 'Channel (Integer)',
+					min: 1,
+					max: self.channelCount || self.maxRacks,
+					default: 1,
+					step: 1,
+					required: true,
+					tooltip: 'Enter the channel number to trigger (1-based index).',
 				},
 			],
 			callback: async (event) => {
 				const channel = parseInt(event.options.channel, 10)
+				if (isNaN(channel) || channel < 1 || channel > (self.channelCount || self.maxRacks)) {
+					self.log('warn', `Invalid channel number: ${event.options.channel}`)
+					return
+				}
 				let rackId = self.rackMap?.[channel]
 				if (typeof rackId === 'object' && rackId !== null && 'id' in rackId) {
 					rackId = rackId.id
