@@ -29,6 +29,21 @@ This module routes WING sources to Waves SuperRack racks using predefined MIDI s
 
 ---
 
+## Waves Configuration
+
+Waves does not natively support selecting racks via MIDI. Therefore, a workaround is required:
+
+- For **Rack 1**, set a plugin from Rack 1 as a Hot Plugin. Repeat this for each rack.
+- If all Hot Plugins are already assigned, create a **Snapshot** that only stores the Hot Plugins.
+- Save this Snapshot as a **Hot Snapshot**.
+
+Once all Hot Snapshots and Hot Plugins exist, configure the MIDI settings:
+
+- Use the helper buttons **"route single Hot Snapshot"** and **"route single Hot Plugin"** to assign MIDI calls.
+- When all Hot Snapshots and Hot Plugins can be triggered via MIDI, you can proceed to map the racks to the channel ID in the connection.
+
+---
+
 ## Actions
 
 - **Route Rack**: Triggers the MIDI sequence for a specific rack.
