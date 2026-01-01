@@ -41,5 +41,29 @@ module.exports = function (self) {
 				await self.routePlugin(event.options.pluginId)
 			},
 		},
+		trigger_channel: {
+			name: 'Trigger Channel',
+			options: [
+				{
+					id: 'channel',
+					type: 'dropdown',
+					label: 'Channel (Int)',
+					choices: Array.from({ length: self.channelCount }, (_, i) => ({ id: String(i + 1), label: `Channel ${String(i + 1)}` })),
+					default: '1',
+				},
+			],
+			callback: async (event) => {
+				const channel = parseInt(event.options.channel, 10)
+				let rackId = self.rackMap?.[channel]
+				if (typeof rackId === 'object' && rackId !== null && 'id' in rackId) {
+					rackId = rackId.id
+				}
+				if (rackId) {
+					await self.routeRack(rackId)
+				} else {
+					self.log('warn', `No rack found for channel ${channel} in rackMap.`)
+				}
+			},
+		},
 	})
 }
