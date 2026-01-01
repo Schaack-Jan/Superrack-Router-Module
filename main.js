@@ -421,3 +421,5 @@ try {
 } catch (e) {
 	console.error('[BOOT][FATAL] runEntrypoint error', e)
 }
+
+module.exports = ModuleInstance
