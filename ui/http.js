@@ -152,6 +152,10 @@ const _startHttpServer = async function (instance) {
 			}
 
 			if (midiChannel) {
+				if (parseInt(midiChannel) === parseInt(instance.hotSnapshot.channel)) {
+					reply.code(400)
+					return { status: 400, error: 'MIDI Channel darf nicht gleichzeitig für Plugin und Snapshot verwendet werden.' }
+				}
 				instance.hotPlugin.channel = midiChannel
 			}
 
@@ -205,6 +209,11 @@ const _startHttpServer = async function (instance) {
 			}
 
 			if (midiChannel) {
+				// Validierung: Channel darf nicht gleich wie hotPlugin.channel sein
+				if (parseInt(midiChannel) === parseInt(instance.hotPlugin.channel)) {
+					reply.code(400)
+					return { status: 400, error: 'MIDI Channel darf nicht gleichzeitig für Plugin und Snapshot verwendet werden.' }
+				}
 				instance.hotSnapshot.channel = midiChannel
 			}
 
