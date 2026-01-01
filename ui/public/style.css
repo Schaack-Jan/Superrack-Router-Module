@@ -232,30 +232,28 @@ button:hover {
 }
 
 #alert-container {
+	display: none;
 	position: fixed;
-	top: 24px;
+	top: 1em;
 	left: 50%;
 	transform: translateX(-50%);
-	min-height: 5rem;
 	min-width: 300px;
 	max-width: 90vw;
 	width: 100%;
-	z-index: -5;
-}
-
-#alert-container * {
 	z-index: 50;
 }
 
 .custom-alert {
 	padding: 16px 32px 16px 16px;
 	border-radius: 6px;
-	margin-bottom: 8px;
 	color: #fff;
 	font-size: 1rem;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 	position: relative;
 	animation: fadein 0.3s;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
 }
 
 .custom-alert-success {
@@ -266,20 +264,17 @@ button:hover {
 	background: #dc3545;
 }
 
-.custom-alert .close-btn {
-	position: absolute;
-	right: 12px;
-	top: 12px;
+.close-btn {
 	background: none;
 	border: none;
 	color: #fff;
-	font-size: 1.2em;
+	font-size: 1.5em;
 	cursor: pointer;
-	opacity: 0.7;
 }
 
-.custom-alert .close-btn:hover {
+.close-btn:hover {
 	opacity: 1;
+	background-color: transparent;
 }
 
 @keyframes fadein {

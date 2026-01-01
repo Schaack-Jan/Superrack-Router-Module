@@ -177,31 +177,26 @@ const loadFromCompanion = async () => {
     }
 }
 
-const showAlert = (message, type = 'info', timeoutMs = 3000) => {
+const showAlert = (message, type = 'success', timeoutMs = 3000) => {
     try {
         let container = document.getElementById('alert-container')
-        if (!container) {
-            container = document.createElement('div')
-            container.id = 'alert-container'
-            container.style.position = 'fixed'
-            container.style.top = '12px'
-            container.style.right = '12px'
-            container.style.zIndex = '9999'
-            container.style.display = 'flex'
-            container.style.flexDirection = 'column'
-            container.style.gap = '8px'
-            document.body.appendChild(container)
-        }
+        container.style.display = 'block'
+
         const el = document.createElement('div')
         el.textContent = String(message ?? '')
-        el.style.padding = '8px 12px'
-        el.style.borderRadius = '6px'
-        el.style.fontSize = '13px'
-        el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)'
-        el.style.background = type === 'error' ? '#ffdddd' : type === 'success' ? '#ddffdd' : '#eef3ff'
-        el.style.color = '#222'
-        el.style.border = '1px solid ' + (type === 'error' ? '#ff9999' : type === 'success' ? '#99dd99' : '#bcccff')
+        el.classList.add('custom-alert', 'custom-alert-' + (type === 'error' ? 'error' : 'success'))
+
+        const button = document.createElement('button')
+        button.className = 'close-btn'
+        button.innerHTML = '&times;'
+        button.addEventListener('click', () => {
+            container.style.display = 'none'
+            el.remove()
+        })
+        el.appendChild(button)
+
         container.appendChild(el)
+
         const timeout = Number.isFinite(timeoutMs) ? timeoutMs : 3000
         if (timeout > 0)
             setTimeout(() => {
