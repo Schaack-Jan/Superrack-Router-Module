@@ -38,7 +38,7 @@ jobs:
           latest=$(gh release list --limit 1 | awk '{print $1}')
           echo "latest=$latest" >> $GITHUB_OUTPUT
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Build package (.tgz)
         run: yarn package
@@ -48,7 +48,7 @@ jobs:
         run: |
           gh release create "${{ steps.pkg.outputs.version }}" --title "Release ${{ steps.pkg.outputs.version }}" --notes "Automated release for version ${{ steps.pkg.outputs.version }}"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Upload .tgz to release
         if: steps.pkg.outputs.version != steps.rel.outputs.latest
@@ -56,4 +56,4 @@ jobs:
           tgz_file=$(ls *.tgz | grep "${{ steps.pkg.outputs.version }}" | head -n1)
           gh release upload "${{ steps.pkg.outputs.version }}" "$tgz_file"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
