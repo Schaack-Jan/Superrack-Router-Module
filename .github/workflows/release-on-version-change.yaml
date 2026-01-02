@@ -21,11 +21,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Yarn v4
-        run: npm install -g yarn@4.10.3
+      - name: Enable Corepack (Yarn v4)
+        run: corepack enable
 
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Get current version from package.json
         id: pkg
@@ -40,8 +40,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Test codebase
+        run: yarn test
+
       - name: Build package (.tgz)
-        run: npm run package
+        run: yarn package
 
       - name: Create release if version changed
         if: steps.pkg.outputs.version != steps.rel.outputs.latest
