@@ -21,6 +21,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install Yarn v4
+        run: npm install -g yarn@4.10.3
+
       - name: Install dependencies
         run: yarn install
 
