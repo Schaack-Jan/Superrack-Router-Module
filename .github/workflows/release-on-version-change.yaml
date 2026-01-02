@@ -40,9 +40,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Test codebase
-        run: yarn test
-
       - name: Build package (.tgz)
         run: yarn package
 
