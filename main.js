@@ -38,6 +38,7 @@ class ModuleInstance extends InstanceBase {
 	async init(config) {
 		this.config = config
 		this._applyConfigToLocalScopes()
+		this.log('info', `Module initialized, logLevel=${this.logLevel}, rackCount=${this.rackCount}, channelCount=${this.channelCount}`)
 		this.updateActions()
 		this.updateFeedbacks()
 		this.updateVariableDefinitions()
@@ -66,6 +67,7 @@ class ModuleInstance extends InstanceBase {
 		try {
 			this.updateVariableDefinitions()
 		} catch {}
+		this.log('info', `CONFIG_UPDATED completed ${JSON.stringify({ logLevel: this.logLevel, hasRackMap: !!this.rackMap, racksLength: this.config?.racks?.length })}`)
 		const desiredPort = parseInt(this.config?.http?.port, 10)
 		if (Number.isInteger(desiredPort) && desiredPort !== this._http.port) {
 			this._log('info', 'HTTP port change detected', { from: this._http.port, to: desiredPort })
@@ -183,9 +185,9 @@ class ModuleInstance extends InstanceBase {
 			changed = true
 		}
 
-		// rackMap stays as-is from defaults when present
-		if (this.config?.rackMap && this.config.rackMap !== {}) {
-			this.rackMap = this.config.rackMap
+		// Sync rackMap from persisted config (HTTP handler stores under config.racks)
+		if (Array.isArray(this.config?.racks) && this.config.racks.length > 0) {
+			this.rackMap = this.config.racks
 		}
 
 		if (this.config?.hotPlugin && this.config.hotPlugin !== {}) {
@@ -199,6 +201,8 @@ class ModuleInstance extends InstanceBase {
 		if (!preventConfigReupdate && changed) {
 			this.saveConfig(this.config)
 		}
+
+		this.log('info', `APPLY_CONFIG completed ${JSON.stringify({ logLevel: this.logLevel, hasRackMap: !!this.rackMap })}`)
 	}
 
 	updateActions() {

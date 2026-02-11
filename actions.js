@@ -8,6 +8,7 @@ module.exports = function (self) {
 			name: 'Route Rack',
 			options: [{ id: 'rackId', type: 'dropdown', label: 'Rack', choices: rackChoices, default: rackChoices[0]?.id }],
 			callback: async (event) => {
+				self.log('info', `[ROUTE_ENTRY] route_rack invoked ${JSON.stringify({ rackId: event.options.rackId })}`)
 				await self.routeRack(event.options.rackId)
 			},
 		},
@@ -23,6 +24,7 @@ module.exports = function (self) {
 				},
 			],
 			callback: async (event) => {
+				self.log('info', `[ROUTE_ENTRY] route_hot_snapshots invoked ${JSON.stringify({ snapshotId: event.options.snapshotId })}`)
 				await self.routeSnapshot(event.options.snapshotId)
 			},
 		},
@@ -38,6 +40,7 @@ module.exports = function (self) {
 				},
 			],
 			callback: async (event) => {
+				self.log('info', `[ROUTE_ENTRY] route_hot_plugins invoked ${JSON.stringify({ pluginId: event.options.pluginId })}`)
 				await self.routePlugin(event.options.pluginId)
 			},
 		},
@@ -68,14 +71,31 @@ module.exports = function (self) {
 					self.log('warn', `Invalid channel number: ${event.options.channel} (resolved: ${channelValue})`)
 					return
 				}
-				let rackId = self.rackMap?.[channel]
-				if (typeof rackId === 'object' && rackId !== null && 'id' in rackId) {
-					rackId = rackId.id
+				self.log('info', `[TRIGGER_CHANNEL] input ${JSON.stringify({ channel, rackMapType: typeof self.rackMap, isArray: Array.isArray(self.rackMap) })}`)
+				// rackMap is indexed by rack ID: rackMap[rackId] = { id: rackId, value: channelId }
+				// We need to find the rack whose .value matches the incoming channel
+				let rackId = null
+				if (Array.isArray(self.rackMap)) {
+					for (let i = 1; i < self.rackMap.length; i++) {
+						const entry = self.rackMap[i]
+						if (entry && entry.value === channel) {
+							rackId = entry.id ?? i
+							break
+						}
+					}
+				} else if (self.rackMap && typeof self.rackMap === 'object') {
+					for (const [key, entry] of Object.entries(self.rackMap)) {
+						if (entry && entry.value === channel) {
+							rackId = entry.id ?? parseInt(key, 10)
+							break
+						}
+					}
 				}
+				self.log('info', `[TRIGGER_CHANNEL] lookup ${JSON.stringify({ channel, rackId })}`)
 				if (rackId) {
 					await self.routeRack(rackId)
 				} else {
-					self.log('warn', `No rack found for channel ${channel} in rackMap.`)
+					self.log('warn', `No rack mapped to channel ${channel} in rackMap.`)
 				}
 			},
 		},

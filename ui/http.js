@@ -55,12 +55,21 @@ const _startHttpServer = async function (instance) {
 		try {
 			const body = req.body || {}
 			const mapping = body.mapping || []
+			instance._log('info', 'PATCH_UPDATE received mapping', {
+				length: Array.isArray(mapping) ? mapping.length : 0,
+				sample: Array.isArray(mapping) ? mapping.slice(1, 5) : null,
+			})
 			// Nur speichern, wenn sich das Mapping geändert hat
 			const isChanged = JSON.stringify(instance.config.racks) !== JSON.stringify(mapping)
 			if (isChanged) {
 				instance.config.racks = mapping
 				instance.rackMap = mapping
+				instance._log('info', 'PATCH_UPDATE applied mapping', {
+					rackMapType: typeof instance.rackMap,
+					rackMapSample: Array.isArray(instance.rackMap) ? instance.rackMap.slice(1, 5) : null,
+				})
 				instance.saveConfig(instance.config)
+				instance._log('info', 'PATCH_UPDATE saved config', { racksLength: instance.config?.racks?.length })
 				instance._applyConfigToLocalScopes()
 				instance.updateActions()
 				instance.updateFeedbacks()

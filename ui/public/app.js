@@ -269,6 +269,7 @@ const persistMappingUpdate = async (changeYId, previousValue) => {
     try {
         const res = await sendMatrixToServer()
         const data = await res.json()
+        console.log('[MAPPING_UI] Persist response', data)
         if (!(data && data.success !== false)) {
             throw new Error('Backend reports an error during patch update')
         }
