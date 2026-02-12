@@ -8,7 +8,7 @@ module.exports = function (self) {
 			name: 'Route Rack',
 			options: [{ id: 'rackId', type: 'dropdown', label: 'Rack', choices: rackChoices, default: rackChoices[0]?.id }],
 			callback: async (event) => {
-				self.log('info', `[ROUTE_ENTRY] route_rack invoked ${JSON.stringify({ rackId: event.options.rackId })}`)
+				self._log('info', '[ROUTE_ENTRY] route_rack invoked', { rackId: event.options.rackId })
 				await self.routeRack(event.options.rackId)
 			},
 		},
@@ -24,7 +24,7 @@ module.exports = function (self) {
 				},
 			],
 			callback: async (event) => {
-				self.log('info', `[ROUTE_ENTRY] route_hot_snapshots invoked ${JSON.stringify({ snapshotId: event.options.snapshotId })}`)
+				self._log('info', '[ROUTE_ENTRY] route_hot_snapshots invoked', { snapshotId: event.options.snapshotId })
 				await self.routeSnapshot(event.options.snapshotId)
 			},
 		},
@@ -40,7 +40,7 @@ module.exports = function (self) {
 				},
 			],
 			callback: async (event) => {
-				self.log('info', `[ROUTE_ENTRY] route_hot_plugins invoked ${JSON.stringify({ pluginId: event.options.pluginId })}`)
+				self._log('info', '[ROUTE_ENTRY] route_hot_plugins invoked', { pluginId: event.options.pluginId })
 				await self.routePlugin(event.options.pluginId)
 			},
 		},
@@ -62,16 +62,16 @@ module.exports = function (self) {
 					try {
 						channelValue = await self.parseVariablesInString(channelValue)
 					} catch (err) {
-						self.log('error', `Failed to parse variables: ${err?.message || err}`)
+						self._log('error', 'Failed to parse variables', { error: err?.message || err })
 						return
 					}
 				}
 				const channel = parseInt(channelValue, 10)
 				if (isNaN(channel) || channel < 1 || channel > (self.channelCount || self.maxRacks)) {
-					self.log('warn', `Invalid channel number: ${event.options.channel} (resolved: ${channelValue})`)
+					self._log('warn', 'Invalid channel number', { input: event.options.channel, resolved: channelValue })
 					return
 				}
-				self.log('info', `[TRIGGER_CHANNEL] input ${JSON.stringify({ channel, rackMapType: typeof self.rackMap, isArray: Array.isArray(self.rackMap) })}`)
+				self._log('info', '[TRIGGER_CHANNEL] input', { channel, rackMapType: typeof self.rackMap, isArray: Array.isArray(self.rackMap) })
 				// rackMap is indexed by rack ID: rackMap[rackId] = { id: rackId, value: channelId }
 				// We need to find the rack whose .value matches the incoming channel
 				let rackId = null
@@ -91,11 +91,11 @@ module.exports = function (self) {
 						}
 					}
 				}
-				self.log('info', `[TRIGGER_CHANNEL] lookup ${JSON.stringify({ channel, rackId })}`)
+				self._log('info', '[TRIGGER_CHANNEL] lookup', { channel, rackId })
 				if (rackId) {
 					await self.routeRack(rackId)
 				} else {
-					self.log('warn', `No rack mapped to channel ${channel} in rackMap.`)
+					self._log('warn', 'No rack mapped to channel in rackMap', { channel })
 				}
 			},
 		},
