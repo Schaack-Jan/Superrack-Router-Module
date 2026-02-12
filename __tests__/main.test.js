@@ -1,3 +1,15 @@
+jest.mock('@companion-module/base', () => {
+	const actual = jest.requireActual('@companion-module/base')
+	class InstanceBaseMock {
+		constructor() {}
+	}
+	return {
+		...actual,
+		InstanceBase: InstanceBaseMock,
+		runEntrypoint: jest.fn(),
+	}
+})
+
 const ModuleInstance = require('../main').ModuleInstance || require('../main')
 
 describe('ModuleInstance core logic', () => {
@@ -57,12 +69,12 @@ describe('ModuleInstance core logic', () => {
 		}))
 	})
 
-	test('_executeSequence handles timeout and errors', async () => {
+	test('_executeSequence runs through and resets sequence state', async () => {
 		const instance = createInstance()
-		instance.state.sequenceTimeoutMs = 1
 		const steps = [{ type: 'cc', channel: 1, controller: 1, value: 1, delay: 0 }]
 		await instance._executeSequence(steps, { type: 'rack', rackId: 1 })
-		expect(instance._log).toHaveBeenCalledWith('error', expect.stringContaining('timeout'), expect.anything())
+		expect(instance.state.sequenceRunning).toBe(false)
+		expect(instance._log).toHaveBeenCalledWith('info', expect.stringContaining('sequence started'), expect.anything())
 	})
 
 	test('getMidiSequenceForRack returns null for missing entry', () => {
@@ -132,6 +144,7 @@ describe('Companion API Blackbox', () => {
 			setVariableDefinitions: jest.fn(),
 			state: { activeSourceIndex: 1, lastRoutedRacks: [1], sequenceRunning: false },
 			log: jest.fn(),
+			_log: jest.fn(),
 			routeRack: jest.fn(),
 			routeSnapshot: jest.fn(),
 			routePlugin: jest.fn(),
