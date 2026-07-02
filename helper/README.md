@@ -18,7 +18,9 @@ The SDK NuGet package is only distributed via GitHub releases, not nuget.org:
 
 ```powershell
 # 1. download the SDK package into helper/packages
-gh release download --repo microsoft/MIDI --pattern 'Microsoft.Windows.Devices.Midi2*.nupkg' --dir helper/packages
+#    (all microsoft/MIDI releases are pre-releases, so name the tag explicitly,
+#     e.g. rc-4 — check github.com/microsoft/MIDI/releases for the newest)
+gh release download rc-4 --repo microsoft/MIDI --pattern 'Microsoft.Windows.Devices.Midi2*.nupkg' --dir helper/packages
 
 # 2. publish a single-file executable
 dotnet publish helper/SuperRackMidiHelper -c Release -r win-x64 -o helper/dist/win-x64

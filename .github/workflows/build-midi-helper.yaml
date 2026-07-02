@@ -25,7 +25,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -ItemType Directory -Force -Path helper/packages | Out-Null
-          gh release download --repo microsoft/MIDI --pattern 'Microsoft.Windows.Devices.Midi2*.nupkg' --dir helper/packages
+          # All microsoft/MIDI releases are pre-releases, so there is no "latest" -
+          # walk the release list and take the newest one carrying the SDK nupkg.
+          $releases = gh release list --repo microsoft/MIDI --limit 30 --json tagName | ConvertFrom-Json
+          foreach ($r in $releases) {
+            gh release download $r.tagName --repo microsoft/MIDI --pattern 'Microsoft.Windows.Devices.Midi2*.nupkg' --dir helper/packages 2>$null
+            if ((Get-ChildItem helper/packages -Filter '*.nupkg' -ErrorAction SilentlyContinue).Count -gt 0) {
+              Write-Host "SDK package found in release $($r.tagName)"
+              break
+            }
+          }
+          if ((Get-ChildItem helper/packages -Filter '*.nupkg' -ErrorAction SilentlyContinue).Count -eq 0) {
+            throw 'No Microsoft.Windows.Devices.Midi2 nupkg found in the last 30 microsoft/MIDI releases'
+          }
           Get-ChildItem helper/packages
 
       - name: Publish helper (win-x64, self-contained single file)
