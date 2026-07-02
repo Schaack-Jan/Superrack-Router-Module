@@ -1,0 +1,43 @@
+name: Build Windows MIDI helper
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['main', 'micha/midi-connector']
+    paths: ['helper/**', '.github/workflows/build-midi-helper.yaml']
+  pull_request:
+    paths: ['helper/**', '.github/workflows/build-midi-helper.yaml']
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download Windows MIDI Services SDK package (GitHub release, not on nuget.org)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path helper/packages | Out-Null
+          gh release download --repo microsoft/MIDI --pattern 'Microsoft.Windows.Devices.Midi2*.nupkg' --dir helper/packages
+          Get-ChildItem helper/packages
+
+      - name: Publish helper (win-x64, self-contained single file)
+        shell: pwsh
+        run: |
+          dotnet publish helper/SuperRackMidiHelper/SuperRackMidiHelper.csproj `
+            -c Release -r win-x64 -p:Platform=x64 `
+            -o helper/dist/win-x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SuperRackMidiHelper-win-x64
+          path: helper/dist/win-x64/SuperRackMidiHelper.exe
+          if-no-files-found: error

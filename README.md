@@ -9,7 +9,7 @@ This module enables routing of WING sources to Waves SuperRack racks using prede
 ## Features
 
 - Routing of racks, hot snapshots, and hot plugins via MIDI variables
-- Optional native MIDI ports: virtual in/out ports on macOS/Linux, loopMIDI port binding on Windows; incoming CC triggers rack routing
+- Optional native MIDI ports: virtual in/out ports on macOS/Linux; on Windows 11 24H2+ a real virtual device via Windows MIDI Services (experimental helper), with automatic loopMIDI fallback; incoming CC triggers rack routing
 - HTTP UI for mapping, patch overview, and health check
 - Variables for a Generic-MIDI instance remain fully supported (no breaking change)
 - Compatible with Companion v4+ (Node 18–22)

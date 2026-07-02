@@ -18,3 +18,9 @@ coverage/
 .graphify/*
 !.graphify/graph.json
 !.graphify/GRAPH_REPORT.md
+
+# Windows MIDI helper build output (built in CI / locally, not tracked)
+helper/packages/
+helper/dist/
+helper/**/bin/
+helper/**/obj/

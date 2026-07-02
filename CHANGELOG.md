@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0] – 2026-07-02
+
+### Added
+
+- **Windows MIDI Services backend (experimental, wave W3):** on Windows 11 24H2+ the module registers a real virtual MIDI device ("SuperRack Router") via a small C# helper (`helper/SuperRackMidiHelper`) against the official Windows MIDI Services App SDK — no loopMIDI required. WinMM MIDI 1.0 hosts see the device through the service's automatic translation.
+  - ndjson-over-stdio bridge between module and helper; ready handshake with timeout.
+  - Automatic fallback chain: Windows MIDI Services → loopMIDI (rtmidi-open) → variables-only.
+  - New config options: Windows MIDI backend (auto/loopMIDI only), helper path.
+  - GitHub Actions workflow `build-midi-helper.yaml` (windows-latest) builds the helper exe; not bundled with the module package.
+  - Requires on-machine verification on Windows 11 24H2+ — the helper cannot be tested in CI beyond compilation.
+
 ## [0.5.0] – 2026-07-02
 
 ### Added

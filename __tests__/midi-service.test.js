@@ -48,6 +48,24 @@ jest.mock('@julusian/midi', () => {
 	return { Output, Input, __state: state }
 })
 
+jest.mock('child_process', () => {
+	const spawnMock = jest.fn()
+	return { spawn: spawnMock, __spawn: spawnMock }
+})
+
+const { EventEmitter } = require('events')
+const fs = require('fs')
+const childProcessMock = require('child_process')
+
+function createFakeHelperProcess() {
+	const child = new EventEmitter()
+	child.stdout = new EventEmitter()
+	child.stderr = new EventEmitter()
+	child.stdin = { write: jest.fn() }
+	child.kill = jest.fn()
+	return child
+}
+
 const midiMock = require('@julusian/midi')
 const {
 	startMidiService,
@@ -111,8 +129,10 @@ describe('resolveBackend', () => {
 		expect(resolveBackend({ midiEnabled: true }, 'darwin')).toBe('rtmidi-virtual')
 		expect(resolveBackend({ midiEnabled: true }, 'linux')).toBe('rtmidi-virtual')
 	})
-	test('opens existing ports on Windows', () => {
-		expect(resolveBackend({ midiEnabled: true }, 'win32')).toBe('rtmidi-open')
+	test('prefers Windows MIDI Services on Windows, loopMIDI only on request', () => {
+		expect(resolveBackend({ midiEnabled: true }, 'win32')).toBe('winmidisvc')
+		expect(resolveBackend({ midiEnabled: true, midiWinBackend: 'auto' }, 'win32')).toBe('winmidisvc')
+		expect(resolveBackend({ midiEnabled: true, midiWinBackend: 'loopmidi' }, 'win32')).toBe('rtmidi-open')
 	})
 })
 
@@ -198,6 +218,101 @@ describe('startMidiService (Windows open-by-name backend)', () => {
 		expect(instance._midi.started).toBe(false)
 		expect(instance._log).toHaveBeenCalledWith('error', expect.stringContaining('loopMIDI'), expect.anything())
 		expect(midiMock.__state.outputs[0].destroy).toHaveBeenCalled()
+	})
+})
+
+describe('startMidiService (Windows MIDI Services helper backend)', () => {
+	let restorePlatform
+	let existsSpy
+	beforeEach(() => {
+		restorePlatform = setPlatform('win32')
+		existsSpy = jest.spyOn(fs, 'existsSync').mockReturnValue(true)
+	})
+	afterEach(() => {
+		restorePlatform()
+		existsSpy.mockRestore()
+	})
+
+	function startWithHelper(instance) {
+		const child = createFakeHelperProcess()
+		childProcessMock.__spawn.mockReturnValue(child)
+		const startPromise = startMidiService(instance)
+		child.stdout.emit('data', JSON.stringify({ type: 'ready', endpointId: 'SWD:TEST' }) + '\n')
+		return startPromise.then(() => child)
+	}
+
+	test('spawns the helper and comes online after the ready handshake', async () => {
+		const instance = createInstance({ midiPortName: 'SuperRack Router' })
+		const child = await startWithHelper(instance)
+		expect(childProcessMock.__spawn).toHaveBeenCalledWith(
+			expect.stringContaining('SuperRackMidiHelper.exe'),
+			['--name', 'SuperRack Router'],
+			expect.objectContaining({ windowsHide: true }),
+		)
+		expect(instance._midi.started).toBe(true)
+		expect(instance._midi.backend).toBe('winmidisvc')
+		expect(instance._midi.helper).toBe(child)
+	})
+
+	test('uses a configured helper path', async () => {
+		const instance = createInstance({ midiHelperPath: 'C:\\tools\\SuperRackMidiHelper.exe' })
+		await startWithHelper(instance)
+		expect(childProcessMock.__spawn).toHaveBeenCalledWith(
+			'C:\\tools\\SuperRackMidiHelper.exe',
+			expect.anything(),
+			expect.anything(),
+		)
+	})
+
+	test('sendMidiStep writes ndjson to the helper stdin', async () => {
+		const instance = createInstance()
+		const child = await startWithHelper(instance)
+		const ok = sendMidiStep(instance, { type: 'cc', channel: 1, controller: 20, value: 64 })
+		expect(ok).toBe(true)
+		expect(child.stdin.write).toHaveBeenCalledWith(JSON.stringify({ type: 'send', bytes: [0xb0, 20, 64] }) + '\n')
+	})
+
+	test('incoming helper midi messages trigger rack routing', async () => {
+		const instance = createInstance({ midiInChannel: 1, midiInController: 1 })
+		instance.rackMap = [null, { id: 1, value: 5 }]
+		const child = await startWithHelper(instance)
+		child.stdout.emit('data', JSON.stringify({ type: 'midi', bytes: [0xb0, 1, 5] }) + '\n')
+		expect(instance.routeRack).toHaveBeenCalledWith(1)
+	})
+
+	test('falls back to the loopMIDI backend when the helper exe is missing', async () => {
+		existsSpy.mockReturnValue(false)
+		midiMock.__state.outputPortNames = ['SuperRack Router 1']
+		midiMock.__state.inputPortNames = ['SuperRack Router 1']
+		const instance = createInstance()
+		await startMidiService(instance)
+		expect(childProcessMock.__spawn).not.toHaveBeenCalled()
+		expect(instance._midi.backend).toBe('rtmidi-open')
+		expect(instance._midi.started).toBe(true)
+	})
+
+	test('falls back to the loopMIDI backend when the helper reports an error and exits', async () => {
+		const child = createFakeHelperProcess()
+		childProcessMock.__spawn.mockReturnValue(child)
+		midiMock.__state.outputPortNames = ['SuperRack Router 1']
+		midiMock.__state.inputPortNames = ['SuperRack Router 1']
+		const instance = createInstance()
+		const startPromise = startMidiService(instance)
+		child.stdout.emit('data', JSON.stringify({ type: 'error', message: 'SDK runtime not found' }) + '\n')
+		child.emit('exit', 2)
+		await startPromise
+		expect(instance._log).toHaveBeenCalledWith('error', expect.stringContaining('SDK runtime not found'))
+		expect(instance._midi.backend).toBe('rtmidi-open')
+		expect(instance._midi.started).toBe(true)
+	})
+
+	test('stopMidiService asks the helper to quit', async () => {
+		const instance = createInstance()
+		const child = await startWithHelper(instance)
+		await stopMidiService(instance)
+		expect(child.stdin.write).toHaveBeenCalledWith(JSON.stringify({ type: 'quit' }) + '\n')
+		expect(instance._midi.started).toBe(false)
+		expect(instance._midi.helper).toBeNull()
 	})
 })
 

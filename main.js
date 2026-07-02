@@ -188,7 +188,8 @@ class ModuleInstance extends InstanceBase {
 				label: 'Native MIDI',
 				value:
 					'Optional: open native MIDI ports so DAWs and Waves SuperRack can talk to this module directly. ' +
-					'On macOS/Linux virtual ports are created automatically. On Windows create a loopMIDI port matching the port name below first (see HELP).',
+					'On macOS/Linux virtual ports are created automatically. On Windows 11 24H2+ a virtual device is registered via ' +
+					'Windows MIDI Services (helper required, see HELP); otherwise a loopMIDI port matching the name below is used.',
 			},
 			{
 				type: 'checkbox',
@@ -203,6 +204,25 @@ class ModuleInstance extends InstanceBase {
 				default: DEFAULT_PORT_BASENAME,
 				tooltip:
 					'Base name of the MIDI ports ("<name> In" / "<name> Out"). On Windows this is matched against existing loopMIDI ports.',
+			},
+			{
+				type: 'dropdown',
+				id: 'midiWinBackend',
+				label: 'Windows MIDI backend',
+				choices: [
+					{ id: 'auto', label: 'Windows MIDI Services (fallback: loopMIDI)' },
+					{ id: 'loopmidi', label: 'loopMIDI only' },
+				],
+				default: 'auto',
+				tooltip:
+					'Windows only. "Windows MIDI Services" registers a real virtual device (Win11 24H2+, helper required).',
+			},
+			{
+				type: 'textinput',
+				id: 'midiHelperPath',
+				label: 'Windows MIDI helper path (optional)',
+				default: '',
+				tooltip: 'Full path to SuperRackMidiHelper.exe. Leave empty to use the bundled helper/dist/win-x64 location.',
 			},
 			{
 				type: 'number',

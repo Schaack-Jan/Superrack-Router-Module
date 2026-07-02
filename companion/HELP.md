@@ -91,16 +91,27 @@ When **Enable native MIDI ports** is checked in the module config, the module op
 
 Virtual ports are created automatically (CoreMIDI / ALSA) — no drivers or extra software needed. They appear in every MIDI host as soon as the module is running.
 
-### Windows
+### Windows 11 24H2+ — Windows MIDI Services (no loopMIDI needed)
 
-Windows cannot create virtual MIDI ports without a driver. Set up a loopback port once:
+On Windows 11 24H2 or newer, the module can register a **real virtual MIDI device** via Windows MIDI Services (experimental):
+
+1. Make sure the Windows MIDI Services rollout has reached your machine (Windows Update, Feb 2026 onwards) and install the SDK runtime from <https://aka.ms/midi>.
+2. Get `SuperRackMidiHelper.exe` (built by the `build-midi-helper` GitHub Actions workflow, or build it yourself — see `helper/README.md`).
+3. Place it at `helper/dist/win-x64/SuperRackMidiHelper.exe` inside the module, or set its full path in the config field **Windows MIDI helper path**.
+4. Keep **Windows MIDI backend** on "Windows MIDI Services (fallback: loopMIDI)".
+
+The device "SuperRack Router" then appears in every MIDI host — including old MIDI 1.0 (WinMM) DAWs, which see it through the service's automatic translation. If the helper is missing or fails (e.g. on older Windows), the module automatically falls back to the loopMIDI backend below.
+
+### Windows (fallback) — loopMIDI
+
+Without Windows MIDI Services, set up a loopback port once:
 
 1. Download and install [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html) (free for private use).
 2. In loopMIDI, create a port whose name contains the configured MIDI port name (e.g. `SuperRack Router`).
 3. Keep loopMIDI running (enable its autostart option).
 4. Restart this connection in Companion; the module opens the loopMIDI port automatically by name.
 
-An upcoming Windows MIDI Services backend (Windows 11 24H2+) may remove the loopMIDI requirement later; see `docs/MIDI_INTEGRATION_PLAN.md`.
+To force this backend, set **Windows MIDI backend** to "loopMIDI only".
 
 ### Sending (MIDI out)
 
