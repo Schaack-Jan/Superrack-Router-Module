@@ -2,7 +2,7 @@
 
 ## Overview
 
-This module routes WING sources to Waves SuperRack racks using predefined MIDI sequences. It does **not** open its own MIDI connection. Instead, it exposes variables for use with a Generic-MIDI instance.
+This module routes WING sources to Waves SuperRack racks using predefined MIDI sequences. By default it exposes variables for use with a Generic-MIDI instance. Optionally it can open **native MIDI ports** so DAWs and Waves SuperRack can talk to this module directly.
 
 ---
 
@@ -80,6 +80,39 @@ Set up triggers in Companion:
   - Controller: `$(superrack-router:midi_last_controller)`
   - Value: `$(superrack-router:midi_last_value)`
 - Make sure "Use Variables" is enabled in the Generic-MIDI action.
+
+---
+
+## Native MIDI Ports (optional)
+
+When **Enable native MIDI ports** is checked in the module config, the module opens its own MIDI input and output port named after the configured **MIDI port name** (default: `SuperRack Router In` / `SuperRack Router Out`). A Generic-MIDI instance is then no longer required for sending.
+
+### macOS / Linux
+
+Virtual ports are created automatically (CoreMIDI / ALSA) — no drivers or extra software needed. They appear in every MIDI host as soon as the module is running.
+
+### Windows
+
+Windows cannot create virtual MIDI ports without a driver. Set up a loopback port once:
+
+1. Download and install [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html) (free for private use).
+2. In loopMIDI, create a port whose name contains the configured MIDI port name (e.g. `SuperRack Router`).
+3. Keep loopMIDI running (enable its autostart option).
+4. Restart this connection in Companion; the module opens the loopMIDI port automatically by name.
+
+An upcoming Windows MIDI Services backend (Windows 11 24H2+) may remove the loopMIDI requirement later; see `docs/MIDI_INTEGRATION_PLAN.md`.
+
+### Sending (MIDI out)
+
+All routing actions (**Route Rack**, **Route Hot Snapshot**, **Route Hot Plugin**) send their MIDI sequences directly on the output port. The variables (`midi_last_*`) are still updated, so existing Generic-MIDI setups keep working unchanged.
+
+### Receiving (MIDI in)
+
+Incoming **CC** messages on the configured **MIDI-in trigger channel** and **trigger CC number** are interpreted like the _Trigger Channel_ action: the CC **value** is the mixer channel number, and the rack mapped to that channel is routed. Note: since MIDI CC values are 0–127, only mixer channels up to 127 can be triggered this way.
+
+### Startup order
+
+MIDI hosts usually scan ports only at startup. Start Companion (with this module enabled) **before** your DAW or SuperRack, and reconnect the ports in the host after restarting this connection.
 
 ---
 

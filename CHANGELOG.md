@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0] – 2026-07-02
+
+### Added
+
+- Optional native MIDI support via `@julusian/midi` (waves W1/W2 of `docs/MIDI_INTEGRATION_PLAN.md`):
+  - Virtual MIDI ports "SuperRack Router In/Out" on macOS (CoreMIDI) and Linux (ALSA), created at module start.
+  - Windows: opens an existing loopMIDI port matched by the configured port name (setup guide in HELP).
+  - All routing actions send their MIDI sequences directly on the output port; `midi_last_*` variables stay updated (no breaking change for Generic-MIDI setups).
+  - Incoming CC on a configurable channel/controller triggers rack routing (Trigger-Channel semantics), with echo suppression.
+  - New config options: enable native MIDI, port name, MIDI-in trigger channel and CC number.
+- `resolveRackForChannel()` extracted to `lib/midi-map.js` and reused by the `trigger_channel` action and MIDI input.
+- Jest tests for the MIDI service (byte encoding, backend selection, lifecycle, error paths, input mapping) without real ports.
+
 ## [0.2.4] – 2025-12-28
 
 ### Added

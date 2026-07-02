@@ -1,3 +1,5 @@
+const { resolveRackForChannel } = require('./lib/midi-map')
+
 module.exports = function (self) {
 	const rackChoices = self._buildRackChoices ? self._buildRackChoices() : []
 	const hotSnapshotChoices = self._buildHotSnapshotChoices ? self._buildHotSnapshotChoices() : []
@@ -71,26 +73,14 @@ module.exports = function (self) {
 					self._log('warn', 'Invalid channel number', { input: event.options.channel, resolved: channelValue })
 					return
 				}
-				self._log('info', '[TRIGGER_CHANNEL] input', { channel, rackMapType: typeof self.rackMap, isArray: Array.isArray(self.rackMap) })
+				self._log('info', '[TRIGGER_CHANNEL] input', {
+					channel,
+					rackMapType: typeof self.rackMap,
+					isArray: Array.isArray(self.rackMap),
+				})
 				// rackMap is indexed by rack ID: rackMap[rackId] = { id: rackId, value: channelId }
 				// We need to find the rack whose .value matches the incoming channel
-				let rackId = null
-				if (Array.isArray(self.rackMap)) {
-					for (let i = 1; i < self.rackMap.length; i++) {
-						const entry = self.rackMap[i]
-						if (entry && entry.value === channel) {
-							rackId = entry.id ?? i
-							break
-						}
-					}
-				} else if (self.rackMap && typeof self.rackMap === 'object') {
-					for (const [key, entry] of Object.entries(self.rackMap)) {
-						if (entry && entry.value === channel) {
-							rackId = entry.id ?? parseInt(key, 10)
-							break
-						}
-					}
-				}
+				const rackId = resolveRackForChannel(self.rackMap, channel)
 				self._log('info', '[TRIGGER_CHANNEL] lookup', { channel, rackId })
 				if (rackId) {
 					await self.routeRack(rackId)

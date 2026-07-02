@@ -3,7 +3,7 @@
 	"name": "Waves SuperRack Router",
 	"shortname": "superrack-router",
 	"description": "Route mixer channels to SuperRack racks via MIDI sequences",
-	"version": "0.4.8",
+	"version": "0.5.0",
 	"license": "MIT",
 	"repository": "git+https://github.com/Schaack-Jan/companion-module-waves-superrack-router.git",
 	"bugs": "https://github.com/Schaack-Jan/companion-module-waves-superrack-router/issues",
