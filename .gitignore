@@ -13,3 +13,8 @@ DEBUG-*
 .env.local
 .env.*.local
 coverage/
+
+# Graphify architecture graph: only the final graph + report are tracked
+.graphify/*
+!.graphify/graph.json
+!.graphify/GRAPH_REPORT.md
