@@ -1,36 +1,36 @@
 # Graph Report - .  (2026-07-02)
 
 ## Corpus Check
-- Corpus is ~21,975 words - fits in a single context window. You may not need a graph.
+- Corpus is ~21,837 words - fits in a single context window. You may not need a graph.
 
 ## Summary
-- 226 nodes · 392 edges · 11 communities detected
+- 248 nodes · 428 edges · 12 communities detected
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 4 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
-- Edge kinds: contains: 96 · PARENT_OF: 66 · ON_BRANCH: 65 · calls: 55 · method: 34 · MODIFIES: 29 · imports: 19 · imports_from: 19 · references: 5 · semantically_similar_to: 4
+- Edge kinds: contains: 112 · PARENT_OF: 71 · ON_BRANCH: 70 · calls: 65 · method: 34 · MODIFIES: 29 · imports: 19 · imports_from: 19 · references: 5 · semantically_similar_to: 4
 
 
 ## Input Scope
 - Requested: auto
 - Resolved: committed (source: default-auto)
-- Included files: 43 · Candidates: 60
-- Excluded: 0 untracked · 11189 ignored · 0 sensitive · 0 missing committed
+- Included files: 44 · Candidates: 61
+- Excluded: 0 untracked · 11220 ignored · 0 sensitive · 0 missing committed
 - Recommendation: Use --scope all or graphify.yaml inputs.corpus for a knowledge-base folder.
 
 ## Graph Freshness
-- Built from Git commit: `af1f7ba`
+- Built from Git commit: `73bf20c`
 - Compare this hash to `git rev-parse HEAD` before trusting freshness-sensitive graph output.
 ## God Nodes (most connected - your core abstractions)
 1. `ModuleInstance` - 27 edges
 2. `startMidiService()` - 8 edges
-3. `MockPort` - 6 edges
-4. `sendMidiStep()` - 5 edges
-5. `midiConfigSnapshot()` - 4 edges
+3. `startMidiService()` - 6 edges
+4. `MockPort` - 6 edges
+5. `sendMidiStep()` - 5 edges
 6. `_startHelperBackend()` - 4 edges
-7. `validateRackMidiMap()` - 4 edges
-8. `parseMidiMapString()` - 4 edges
-9. `persistMappingUpdate()` - 4 edges
-10. `startWithHelper()` - 3 edges
+7. `midiConfigSnapshot()` - 4 edges
+8. `_startHelperBackend()` - 4 edges
+9. `validateRackMidiMap()` - 4 edges
+10. `parseMidiMapString()` - 4 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Pre-Commit / CI Review Prompt` --semantically_similar_to--> `Bitfocus Companion Module Release Checklist`  [INFERRED] [semantically similar]
@@ -52,8 +52,8 @@
 ## Communities
 
 ### Community 0 - "ModuleInstance Core (Companion Lifecycle)"
-Cohesion: 0.08
-Nodes (53): micha/midi-connector, 03835ec chore: replace npm with yarn for dependency installation in CI workflow, 0733dc7 Use immutable yarn install in PR unit test workflow, 090aa6f chore: rename companion-module-checks.yaml to companion-module-checks.yaml.inactive, 0ad74fb chore: bump version to 0.4.3 in manifest and package files, 0ed48f7 feat: add unit tests for MIDI channel validation to prevent conflicts, 1fb4722 feat: bump version to 0.4.0 for release, 21db6df chore: update CI workflow to enable Corepack for Yarn v4 and improve dependency installation (+45 more)
+Cohesion: 0.07
+Nodes (62): micha/midi-connector, 03835ec chore: replace npm with yarn for dependency installation in CI workflow, 0733dc7 Use immutable yarn install in PR unit test workflow, 0838f6f chore: refresh architecture graph after MIDI service addition, 090aa6f chore: rename companion-module-checks.yaml to companion-module-checks.yaml.inactive, 0ad74fb chore: bump version to 0.4.3 in manifest and package files, 0ed48f7 feat: add unit tests for MIDI channel validation to prevent conflicts, 1fb4722 feat: bump version to 0.4.0 for release (+54 more)
 
 ### Community 1 - "Patch UI Frontend (app.js)"
 Cohesion: 0.08
@@ -76,12 +76,12 @@ Cohesion: 0.16
 Nodes (12): { resolveRackForChannel }, 21b0865 chore: bump version to 0.3.0 in manifest and package files, 2fa3f6d feat: add home navigation button to mapping UIs and implement home page with grid layout, 4d37311 feat: update patch routes to serve rack-channel UI and add test route for home page, bb9ed19 feat: add default hot plugin and snapshot mappings to MIDI settings, applyMidiStepToVariables(), parseMidiMapString(), resolveRackForChannel() (+4 more)
 
 ### Community 6 - "MIDI Plugin Frontend (midi.js)"
-Cohesion: 0.18
-Nodes (6): request, { startHttpServer, stopHttpServer }, request, { startHttpServer, stopHttpServer }, fastifyFactory, fastifyStatic
+Cohesion: 0.19
+Nodes (15): _findPortIndexByName(), fs, handleIncomingMidi(), HELPER_DEFAULT_RELATIVE, helperExePath(), _isEcho(), midiConfigSnapshot(), midiStepToBytes() (+7 more)
 
 ### Community 7 - "HTTP Server Unit Tests"
-Cohesion: 0.25
-Nodes (7): 0838f6f chore: refresh architecture graph after MIDI service addition, af1f7ba feat: Windows MIDI Services virtual device backend (wave W3, experimental), cf28de7 feat: optional native MIDI ports via @julusian/midi (plan waves W1+W2), deacd9d docs: resolve OF-1 (target platforms Windows + macOS), prioritize W3, net10.0-windows10.0.26100.0, Microsoft.Windows.Devices.Midi2, Microsoft.NET.Sdk
+Cohesion: 0.18
+Nodes (6): request, { startHttpServer, stopHttpServer }, request, { startHttpServer, stopHttpServer }, fastifyFactory, fastifyStatic
 
 ### Community 8 - "Default Config & Hot Maps"
 Cohesion: 0.33
@@ -95,29 +95,25 @@ Nodes (4): channelInput, sendToServer(), typeSelect, updateMidiSetting()
 Cohesion: 0.40
 Nodes (4): buildServer(), fastifyFactory, fastifyStatic, request
 
+### Community 11 - "Community 11"
+Cohesion: 0.50
+Nodes (3): net10.0-windows10.0.26100.0, Microsoft.Windows.Devices.Midi2, Microsoft.NET.Sdk
+
 ## Knowledge Gaps
-- **46 isolated node(s):** `{ EventEmitter }`, `fs`, `childProcessMock`, `midiMock`, `{
-	startMidiService,
-	stopMidiService,
-	sendMidiStep,
-	midiStepToBytes,
-	resolveBackend,
-	midiConfigSnapshot,
-	ECHO_SUPPRESS_MS,
-}` (+41 more)
+- **49 isolated node(s):** `path`, `fs`, `HELPER_DEFAULT_RELATIVE`, `{ EventEmitter }`, `fs` (+44 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `ModuleInstance` connect `Module Wiring (main/actions/feedbacks/variables)` to `Docs & Governance (README/CHANGELOG/Checklists)`?**
-  _High betweenness centrality (0.162) - this node is a cross-community bridge._
+  _High betweenness centrality (0.139) - this node is a cross-community bridge._
 - **Why does `startMidiService()` connect `Patch UI Frontend (app.js)` to `Docs & Governance (README/CHANGELOG/Checklists)`?**
-  _High betweenness centrality (0.015) - this node is a cross-community bridge._
-- **What connects `{ EventEmitter }`, `fs`, `childProcessMock` to the rest of the system?**
-  _46 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _High betweenness centrality (0.012) - this node is a cross-community bridge._
+- **What connects `path`, `fs`, `HELPER_DEFAULT_RELATIVE` to the rest of the system?**
+  _49 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `ModuleInstance Core (Companion Lifecycle)` be split into smaller, more focused modules?**
-  _Cohesion score 0.07619738751814223 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06504494976203067 - nodes in this community are weakly interconnected._
 - **Should `Patch UI Frontend (app.js)` be split into smaller, more focused modules?**
   _Cohesion score 0.07823613086770982 - nodes in this community are weakly interconnected._
 - **Should `Module Wiring (main/actions/feedbacks/variables)` be split into smaller, more focused modules?**
