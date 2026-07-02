@@ -23,7 +23,7 @@ Das Modul soll auf dem System als eigenes MIDI-Gerät erscheinen — mindestens 
 | Zielplattformen | Überall, wo Companion läuft: Windows, macOS, Linux (inkl. Raspberry Pi). Eine minimale OS-Version ist nirgends im Repo festgelegt. | — |
 | Weitere Abhängigkeiten | `fastify` ^5.6.2, `@fastify/static` 8 (HTTP-UI) | `package.json` |
 
-> **Offene Frage OF-1:** Welche Betriebssysteme nutzen die tatsächlichen Anwender (FoH-Rechner)? Im Live-Audio-Umfeld mit Waves SuperRack ist Windows stark verbreitet — genau die Plattform, auf der virtuelle Ports am schwierigsten sind. Klärungsvorschlag: kurze Abfrage bei den bekannten Nutzern/Maintainern, Ergebnis als Entscheidungsgrundlage für die Priorisierung von Welle 3 (siehe Phase 4).
+> **OF-1 (beantwortet 2026-07-02):** Zielplattformen sind **Windows und macOS**. macOS ist mit virtuellen CoreMIDI-Ports (Welle 1) vollständig bedient; für Windows ist Welle 3 (Windows-MIDI-Services-Backend) priorisiert, bis dahin gilt der dokumentierte loopMIDI-Weg. Linux bleibt über das rtmidi-Backend nutzbar, ist aber keine Zielplattform.
 
 ### Prozessmodell und Threading
 
@@ -228,17 +228,17 @@ lib/midi-service.js
 
 | Welle | Inhalt | Definition of Done |
 |---|---|---|
-| **W0 — Klärung** | OF-1–OF-5 beantworten; Prebuild-Matrix von `@julusian/midi` gegen Companion-Zielplattformen prüfen | Antworten dokumentiert; Go/No-Go für W1 |
+| **W0 — Klärung** | OF-1–OF-5 beantworten; Prebuild-Matrix von `@julusian/midi` gegen Companion-Zielplattformen prüfen. *Stand: OF-1 beantwortet (Windows + macOS), Prebuild-Matrix geprüft (win32/darwin x64+arm64 vorhanden) — Go für W1 erteilt.* | Antworten dokumentiert; Go/No-Go für W1 |
 | **W1 — MIDI-Out** | `lib/midi-service.js` (Backends `rtmidi-virtual`/`rtmidi-open`/`none`), Senden in `_sendMidiStep`, Config-Felder, HELP.md-Abschnitt inkl. loopMIDI-Anleitung | Virtuelle Ports auf macOS/Linux in DAW sichtbar; Windows-Weg über loopMIDI dokumentiert und getestet; alle Alt-Tests grün; neue Unit-Tests für Service-Lifecycle und Byte-Encoding; Variablen-Weg unverändert funktionsfähig |
 | **W2 — MIDI-In** | In-Port-Callback, `resolveRackForChannel`-Extraktion, konfigurierbares Eingangs-Mapping, Loop-Schutz | Eingehende CC löst Rack-Routing in einer DAW-Demo aus; Mapping-Logik zu 100 % unit-getestet ohne echte Ports |
-| **W3 — Windows nativ (optional, abhängig von OF-1/OF-2)** | `winmidisvc`-Backend: N-API-Addon oder Helper-Prozess gegen Windows MIDI Services App SDK; Feature-Detection + loopMIDI-Fallback | Auf Win11 24H2+ erscheint „SuperRack Router" ohne loopMIDI in einer WinMM-DAW; sauberer Fallback auf W1-Verhalten sonst |
+| **W3 — Windows nativ (geplant; OF-1 beantwortet: Windows ist Zielplattform)** | `winmidisvc`-Backend: N-API-Addon oder Helper-Prozess gegen Windows MIDI Services App SDK; Feature-Detection + loopMIDI-Fallback. Empfohlener Zuschnitt: kleiner C#-Helper-Prozess (offizielle SDK-Projektion, kein eigener WinRT-Projektionsaufwand), der die Virtual-Device-Endpoints hält und via stdio/IPC mit dem Modul spricht; Voraussetzung ist ein Windows-Build-/Signier-Schritt in CI. Vor Start: Rollout-Reife erneut prüfen (R-2) und OF-2 (Bitfocus-Policy) klären. | Auf Win11 24H2+ erscheint „SuperRack Router" ohne loopMIDI in einer WinMM-DAW; sauberer Fallback auf W1-Verhalten (loopMIDI) auf Windows 10 und Win11 ohne MIDI Services |
 | **W4 — Polish** | Feedback-Spiegelung als MIDI-Out (optional), Multi-Instanz-Portnamen, Doku/README-Update, CHANGELOG, Versionssprung | Release-Checkliste (`companion-release-checklist.md`) vollständig erfüllt |
 
 ### Risiken und offene Fragen
 
 | # | Risiko / offene Frage | Vorschlag zur Klärung |
 |---|---|---|
-| OF-1 | **Ziel-OS der Nutzer unbekannt** (Windows-Anteil entscheidet über Priorität von W3) | Nutzer-/Maintainer-Abfrage vor W0-Abschluss |
+| OF-1 | ~~**Ziel-OS der Nutzer unbekannt**~~ **Beantwortet (2026-07-02): Zielplattformen sind Windows und macOS.** macOS ist durch W1 (virtuelle CoreMIDI-Ports) vollständig bedient; für Windows ist W3 damit priorisiert (siehe Wellen-Tabelle). Linux bleibt über das rtmidi-Backend funktionsfähig, ist aber keine Zielplattform mehr — OF-3 (Linux-ARM-Prebuilds) ist damit nachrangig. | erledigt |
 | OF-2 | **Companion-Modul-Policy für native Dependencies**: `.github/copilot-instructions.md` warnt vor nativen Bindings; offizielle Aufnahme ins Companion-Repo könnte Diskussion erfordern | Präzedenzfall generic-midi (`@julusian/midi`) in der Modul-Einreichung referenzieren; früh Kontakt mit Bitfocus-Maintainer (Julusian ist zugleich Lib-Autor) |
 | OF-3 | **Prebuild-Abdeckung** von `@julusian/midi` für alle Companion-Plattformen (insb. Linux-ARM/Raspberry Pi) | In W0 Prebuild-Liste des npm-Pakets prüfen + Smoke-Install auf Ziel-Architekturen |
 | OF-4 | **Eingangs-Mapping-Belegung** (welche Note/CC/PC-Nummern die Nutzer erwarten) | Vorschlag aus Phase 4 den Nutzern vorlegen, in W2 finalisieren |
