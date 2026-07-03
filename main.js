@@ -55,7 +55,11 @@ class ModuleInstance extends InstanceBase {
 		this.updateVariableDefinitions()
 		this.updateStatus(InstanceStatus.Ok)
 		await startHttpServer(this)
-		await startMidiService(this)
+		try {
+			await startMidiService(this)
+		} catch (e) {
+			this._log('error', 'MIDI service failed to start, continuing in variables-only mode', { error: e?.message })
+		}
 	}
 
 	// Companion lifecycle method: Called when the module is destroyed

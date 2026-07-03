@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1] – 2026-07-02
+
+### Fixed
+
+- Module crashed on init under Companion 4's sandboxed module runtime (`--permission`): `fs.existsSync` on the helper path outside the module directory throws under Node's permission model. The check is now exception-safe, `startMidiService` failures can no longer take down `init()`, and the manifest declares the required runtime permissions (`native-addons`, `child-process`, `filesystem`).
+
 ## [0.6.0] – 2026-07-02
 
 ### Added
