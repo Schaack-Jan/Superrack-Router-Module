@@ -2,15 +2,16 @@
 
 > **Release-Ready for Bitfocus Companion v4+**
 
-This module enables routing of WING sources to Waves SuperRack racks using predefined MIDI sequences. It does **not** open its own MIDI connection, but instead exposes variables that can be triggered via a Generic-MIDI instance.
+This module enables routing of WING sources to Waves SuperRack racks using predefined MIDI sequences. By default it exposes variables that can be triggered via a Generic-MIDI instance. Optionally, it opens **native MIDI ports** ("SuperRack Router In/Out") so MIDI hosts can talk to it directly — virtual ports on macOS/Linux, loopMIDI-based on Windows (see HELP).
 
 ---
 
 ## Features
 
 - Routing of racks, hot snapshots, and hot plugins via MIDI variables
+- Optional native MIDI ports: virtual in/out ports on macOS/Linux; on Windows 11 24H2+ a real virtual device via Windows MIDI Services (experimental helper), with automatic loopMIDI fallback; incoming CC triggers rack routing
 - HTTP UI for mapping, patch overview, and health check
-- No internal MIDI connection: all MIDI data is provided as variables for a Generic-MIDI instance
+- Variables for a Generic-MIDI instance remain fully supported (no breaking change)
 - Compatible with Companion v4+ (Node 18–22)
 - Full test coverage (>90% recommended)
 
@@ -99,7 +100,7 @@ Set up a trigger in Companion:
 ## Development & Testing
 
 - Node version: >=18 <23
-- Dependencies: `@companion-module/base`, `fastify`, `@fastify/static`
+- Dependencies: `@companion-module/base`, `fastify`, `@fastify/static`, `@julusian/midi`
 - Build: `yarn package`
 - Formatting: `yarn format`
 - Tests: `yarn test` (Jest, coverage >90% recommended)

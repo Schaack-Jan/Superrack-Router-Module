@@ -13,3 +13,16 @@ DEBUG-*
 .env.local
 .env.*.local
 coverage/
+
+# Graphify architecture graph: only the final graph + report are tracked
+.graphify/*
+!.graphify/graph.json
+!.graphify/GRAPH_REPORT.md
+# stray nested caches created by the graphify git hook
+*/**/.graphify/
+
+# Windows MIDI helper build output (built in CI / locally, not tracked)
+helper/packages/
+helper/dist/
+helper/**/bin/
+helper/**/obj/

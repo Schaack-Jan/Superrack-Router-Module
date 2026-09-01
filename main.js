@@ -6,6 +6,13 @@ const UpdateVariableDefinitions = require('./variables')
 const defaults = require('./default-variables')
 const { startHttpServer, stopHttpServer } = require('./ui/http')
 const { applyMidiStepToVariables } = require('./lib/midi-map')
+const {
+	startMidiService,
+	stopMidiService,
+	sendMidiStep,
+	midiConfigSnapshot,
+	DEFAULT_PORT_BASENAME,
+} = require('./lib/midi-service')
 
 const MIDI_STEP_DELAY_MS = 50
 
@@ -32,24 +39,34 @@ class ModuleInstance extends InstanceBase {
 
 		this.logLevel = defaults.logLevel ?? 'error'
 		this._http = defaults.httpSettings
+		this._midi = { started: false, restarting: false, backend: 'none', input: null, output: null, lastSent: [] }
 	}
 
 	// Companion lifecycle method: Called when the module is initialized
 	async init(config) {
 		this.config = config
 		this._applyConfigToLocalScopes()
-		this._log('info', `Module initialized, logLevel=${this.logLevel}, rackCount=${this.rackCount}, channelCount=${this.channelCount}`)
+		this._log(
+			'info',
+			`Module initialized, logLevel=${this.logLevel}, rackCount=${this.rackCount}, channelCount=${this.channelCount}`,
+		)
 		this.updateActions()
 		this.updateFeedbacks()
 		this.updateVariableDefinitions()
 		this.updateStatus(InstanceStatus.Ok)
 		await startHttpServer(this)
+		try {
+			await startMidiService(this)
+		} catch (e) {
+			this._log('error', 'MIDI service failed to start, continuing in variables-only mode', { error: e?.message })
+		}
 	}
 
 	// Companion lifecycle method: Called when the module is destroyed
 	async destroy() {
 		this._log('debug', 'destroy start')
 		this.state.sequenceRunning = false
+		await stopMidiService(this)
 		await stopHttpServer(this)
 		this._log('debug', 'destroy done')
 	}
@@ -67,7 +84,28 @@ class ModuleInstance extends InstanceBase {
 		try {
 			this.updateVariableDefinitions()
 		} catch {}
-		this._log('info', `CONFIG_UPDATED completed`, { logLevel: this.logLevel, hasRackMap: !!this.rackMap, racksLength: this.config?.racks?.length })
+		this._log('info', `CONFIG_UPDATED completed`, {
+			logLevel: this.logLevel,
+			hasRackMap: !!this.rackMap,
+			racksLength: this.config?.racks?.length,
+		})
+		// Restart MIDI service only when MIDI-relevant config changed
+		const newMidiSnapshot = midiConfigSnapshot(this.config)
+		if (newMidiSnapshot !== this._midi.configSnapshot) {
+			if (this._midi.restarting) {
+				this._log('debug', 'MIDI restart already in progress')
+			} else {
+				this._midi.restarting = true
+				try {
+					await stopMidiService(this)
+					await startMidiService(this)
+				} catch (err) {
+					this._log('error', 'Failed to restart MIDI service', { error: err?.message })
+				} finally {
+					this._midi.restarting = false
+				}
+			}
+		}
 		const desiredPort = parseInt(this.config?.http?.port, 10)
 		if (Number.isInteger(desiredPort) && desiredPort !== this._http.port) {
 			this._log('info', 'HTTP port change detected', { from: this._http.port, to: desiredPort })
@@ -147,6 +185,67 @@ class ModuleInstance extends InstanceBase {
 				max: 65535,
 				default: this._http.port,
 				tooltip: 'Port for the Fastify HTTP server',
+			},
+			{
+				type: 'static-text',
+				id: 'info_midi',
+				label: 'Native MIDI',
+				value:
+					'Optional: open native MIDI ports so DAWs and Waves SuperRack can talk to this module directly. ' +
+					'On macOS/Linux virtual ports are created automatically. On Windows 11 24H2+ a virtual device is registered via ' +
+					'Windows MIDI Services (helper required, see HELP); otherwise a loopMIDI port matching the name below is used.',
+			},
+			{
+				type: 'checkbox',
+				id: 'midiEnabled',
+				label: 'Enable native MIDI ports',
+				default: false,
+			},
+			{
+				type: 'textinput',
+				id: 'midiPortName',
+				label: 'MIDI port name',
+				default: DEFAULT_PORT_BASENAME,
+				tooltip:
+					'Base name of the MIDI ports ("<name> In" / "<name> Out"). On Windows this is matched against existing loopMIDI ports.',
+			},
+			{
+				type: 'dropdown',
+				id: 'midiWinBackend',
+				label: 'Windows MIDI backend',
+				choices: [
+					{ id: 'auto', label: 'Windows MIDI Services (fallback: loopMIDI)' },
+					{ id: 'loopmidi', label: 'loopMIDI only' },
+				],
+				default: 'auto',
+				tooltip:
+					'Windows only. "Windows MIDI Services" registers a real virtual device (Win11 24H2+, helper required).',
+			},
+			{
+				type: 'textinput',
+				id: 'midiHelperPath',
+				label: 'Windows MIDI helper path (optional)',
+				default: '',
+				tooltip: 'Full path to SuperRackMidiHelper.exe. Leave empty to use the bundled helper/dist/win-x64 location.',
+			},
+			{
+				type: 'number',
+				id: 'midiInChannel',
+				label: 'MIDI-in trigger channel (1-16)',
+				min: 1,
+				max: 16,
+				default: 1,
+				tooltip: 'Incoming CC messages on this MIDI channel trigger rack routing.',
+			},
+			{
+				type: 'number',
+				id: 'midiInController',
+				label: 'MIDI-in trigger CC number (0-127)',
+				min: 0,
+				max: 127,
+				default: 1,
+				tooltip:
+					'CC number whose value is interpreted as the mixer channel to route (same semantics as the Trigger Channel action).',
 			},
 		]
 	}
@@ -264,6 +363,7 @@ class ModuleInstance extends InstanceBase {
 			midi_last_value: value,
 			last_action_timestamp: Date.now(),
 		})
+		sendMidiStep(this, step)
 		this._log('debug', 'MIDI step prepared', { status, ch, controller, value })
 	}
 
@@ -286,8 +386,20 @@ class ModuleInstance extends InstanceBase {
 		const snapshotStep = this.hotSnapshot?.mapping?.find((s) => s && s.id === entry.snapshot)
 		if (!pluginStep || !snapshotStep) return null
 		return [
-			{ type: this.hotSnapshot.type, channel: this.hotSnapshot.channel, controller: snapshotStep.id, value: snapshotStep.value, delay: 0 },
-			{ type: this.hotPlugin.type, channel: this.hotPlugin.channel, controller: pluginStep.id, value: pluginStep.value, delay: 0 },
+			{
+				type: this.hotSnapshot.type,
+				channel: this.hotSnapshot.channel,
+				controller: snapshotStep.id,
+				value: snapshotStep.value,
+				delay: 0,
+			},
+			{
+				type: this.hotPlugin.type,
+				channel: this.hotPlugin.channel,
+				controller: pluginStep.id,
+				value: pluginStep.value,
+				delay: 0,
+			},
 		]
 	}
 
@@ -298,7 +410,13 @@ class ModuleInstance extends InstanceBase {
 		const snapshotStep = this.hotSnapshot?.mapping?.find((s) => s && s.id === entry.snapshot)
 		if (!snapshotStep) return null
 		return [
-			{ type: this.hotSnapshot.type, channel: this.hotSnapshot.channel, controller: snapshotStep.id, value: snapshotStep.value, delay: 0 },
+			{
+				type: this.hotSnapshot.type,
+				channel: this.hotSnapshot.channel,
+				controller: snapshotStep.id,
+				value: snapshotStep.value,
+				delay: 0,
+			},
 		]
 	}
 
@@ -309,7 +427,13 @@ class ModuleInstance extends InstanceBase {
 		const pluginStep = this.hotPlugin?.mapping?.find((p) => p && p.id === entry.plugin)
 		if (!pluginStep) return null
 		return [
-			{ type: this.hotPlugin.type, channel: this.hotPlugin.channel, controller: pluginStep.id, value: pluginStep.value, delay: 0 },
+			{
+				type: this.hotPlugin.type,
+				channel: this.hotPlugin.channel,
+				controller: pluginStep.id,
+				value: pluginStep.value,
+				delay: 0,
+			},
 		]
 	}
 
@@ -319,7 +443,10 @@ class ModuleInstance extends InstanceBase {
 		this.state.sequenceStartTs = Date.now()
 		try {
 			await this._executeRackSequence(rackId)
-			this.state.lastRoutedRacks = [rackId, ...(this.state.lastRoutedRacks || []).filter((id) => id !== rackId)].slice(0, 8)
+			this.state.lastRoutedRacks = [rackId, ...(this.state.lastRoutedRacks || []).filter((id) => id !== rackId)].slice(
+				0,
+				8,
+			)
 		} finally {
 			this.state.sequenceRunning = false
 			this._updateVariables()
@@ -364,6 +491,7 @@ class ModuleInstance extends InstanceBase {
 			}
 			try {
 				applyMidiStepToVariables(this, step)
+				sendMidiStep(this, step)
 				this.state.lastActionTimestamp = Date.now()
 				this._updateVariables({ setActionTimestamp: true })
 			} catch (e) {
@@ -406,7 +534,10 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	_buildRackChoices() {
-		return this.hotMap.map((entry) => ({ id: String(entry.rack), label: `Rack ${entry.rack} (Plugin ${entry.plugin}, Snapshot ${entry.snapshot})` }))
+		return this.hotMap.map((entry) => ({
+			id: String(entry.rack),
+			label: `Rack ${entry.rack} (Plugin ${entry.plugin}, Snapshot ${entry.snapshot})`,
+		}))
 	}
 
 	_buildHotSnapshotChoices() {

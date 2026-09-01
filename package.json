@@ -1,6 +1,6 @@
 {
 	"name": "waves-superrack-router",
-	"version": "0.4.8",
+	"version": "0.6.1",
 	"main": "main.js",
 	"scripts": {
 		"format": "prettier -w .",
@@ -18,6 +18,7 @@
 	"dependencies": {
 		"@companion-module/base": "~1.12.1",
 		"@fastify/static": "8",
+		"@julusian/midi": "^3.6.1",
 		"fastify": "^5.6.2"
 	},
 	"devDependencies": {

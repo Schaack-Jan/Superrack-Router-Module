@@ -902,6 +902,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@julusian/midi@npm:^3.6.1":
+  version: 3.6.1
+  resolution: "@julusian/midi@npm:3.6.1"
+  dependencies:
+    node-addon-api: "npm:^6.1.0"
+    node-gyp: "npm:latest"
+    pkg-prebuilds: "npm:^1.0.0"
+  checksum: 10c0/de7d5b215cfb89a261909aafe99adb586ba444ca9ba484905eb11ccce5660ea41b58bd890517af6f1faebac5da4cf80544df57e8ef7044108711be446f6d7f81
+  languageName: node
+  linkType: hard
+
 "@lukeed/ms@npm:^2.0.2":
   version: 2.0.2
   resolution: "@lukeed/ms@npm:2.0.2"
@@ -3912,6 +3923,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"node-addon-api@npm:^6.1.0":
+  version: 6.1.0
+  resolution: "node-addon-api@npm:6.1.0"
+  dependencies:
+    node-gyp: "npm:latest"
+  checksum: 10c0/d2699c4ad15740fd31482a3b6fca789af7723ab9d393adc6ac45250faaee72edad8f0b10b2b9d087df0de93f1bdc16d97afdd179b26b9ebc9ed68b569faa4bac
+  languageName: node
+  linkType: hard
+
 "node-gyp@npm:latest":
   version: 12.1.0
   resolution: "node-gyp@npm:12.1.0"
@@ -4241,6 +4261,16 @@ __metadata:
   dependencies:
     find-up: "npm:^4.0.0"
   checksum: 10c0/c56bda7769e04907a88423feb320babaed0711af8c436ce3e56763ab1021ba107c7b0cafb11cde7529f669cfc22bffcaebffb573645cbd63842ea9fb17cd7728
+  languageName: node
+  linkType: hard
+
+"pkg-prebuilds@npm:^1.0.0":
+  version: 1.1.0
+  resolution: "pkg-prebuilds@npm:1.1.0"
+  bin:
+    pkg-prebuilds-copy: bin/copy.mjs
+    pkg-prebuilds-verify: bin/verify.mjs
+  checksum: 10c0/14894c0b3cffd81d53ebc47565854360b63eec72c862afa750c3f496a27f3ff9f1e992d9e728a948ad8e2ddecb91c80543a135908c59e28ef7eebf47c89de3e0
   languageName: node
   linkType: hard
 
@@ -5125,6 +5155,7 @@ __metadata:
     "@companion-module/base": "npm:~1.12.1"
     "@companion-module/tools": "npm:^2.4.2"
     "@fastify/static": "npm:8"
+    "@julusian/midi": "npm:^3.6.1"
     fastify: "npm:^5.6.2"
     jest: "npm:^29.7.0"
     prettier: "npm:^3.6.2"

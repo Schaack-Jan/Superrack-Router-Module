@@ -3,7 +3,7 @@
 	"name": "Waves SuperRack Router",
 	"shortname": "superrack-router",
 	"description": "Route mixer channels to SuperRack racks via MIDI sequences",
-	"version": "0.4.8",
+	"version": "0.6.1",
 	"license": "MIT",
 	"repository": "git+https://github.com/Schaack-Jan/companion-module-waves-superrack-router.git",
 	"bugs": "https://github.com/Schaack-Jan/companion-module-waves-superrack-router/issues",
@@ -15,7 +15,12 @@
 		"type": "node22",
 		"api": "nodejs-ipc",
 		"apiVersion": "4.0.0",
-		"entrypoint": "../main.js"
+		"entrypoint": "../main.js",
+		"permissions": {
+			"native-addons": true,
+			"child-process": true,
+			"filesystem": true
+		}
 	},
 	"legacyIds": [],
 	"manufacturer": "Waves",
